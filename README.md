@@ -1,5 +1,7 @@
 # TorchSharp.PyBridge
 
+[![NuGet](https://img.shields.io/nuget/v/TorchSharp.PyBridge.svg)](https://www.nuget.org/packages/TorchSharp.PyBridge/)
+
 TorchSharp.PyBridge is an extension library for [TorchSharp](https://github.com/dotnet/TorchSharp), providing seamless interoperability between .NET and Python for model serialization. It simplifies the process of saving and loading PyTorch models in a .NET environment, enabling developers to easily develop models in both .NET and Python and transfer models easily.
 
 ## Features
