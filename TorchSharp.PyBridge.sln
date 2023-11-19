@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.6.33723.286
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TorchSharp.PyBridge", "TorchSharp.PyBridge\TorchSharp.PyBridge.csproj", "{CA09DEDA-DDEE-483F-BA53-EEE395125A4C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TorchSharp.PyBridge.Tests", "TorchSharp.PyBridge.Tests\TorchSharp.PyBridge.Tests.csproj", "{082A67F7-B936-4B6B-937D-3EDB8A42874D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CA09DEDA-DDEE-483F-BA53-EEE395125A4C}.Debug|x64.ActiveCfg = Debug|x64
+		{CA09DEDA-DDEE-483F-BA53-EEE395125A4C}.Debug|x64.Build.0 = Debug|x64
+		{CA09DEDA-DDEE-483F-BA53-EEE395125A4C}.Release|x64.ActiveCfg = Release|x64
+		{CA09DEDA-DDEE-483F-BA53-EEE395125A4C}.Release|x64.Build.0 = Release|x64
+		{082A67F7-B936-4B6B-937D-3EDB8A42874D}.Debug|x64.ActiveCfg = Debug|x64
+		{082A67F7-B936-4B6B-937D-3EDB8A42874D}.Debug|x64.Build.0 = Debug|x64
+		{082A67F7-B936-4B6B-937D-3EDB8A42874D}.Release|x64.ActiveCfg = Release|x64
+		{082A67F7-B936-4B6B-937D-3EDB8A42874D}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {0F7199C3-1A7C-46F8-9083-C53579DC33B3}
+	EndGlobalSection
+EndGlobal
