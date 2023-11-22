@@ -31,9 +31,12 @@ namespace TorchSharp.PyBridge {
 
             // sd.Options -> ArrayList with all the properties
             var optionsList = new ArrayList();
-            foreach (var option in sd.Options) {
+            for (int iOption = 0; iOption < sd.Options.Count; iOption++) {
                 var tgtOption = new Hashtable();
-                OptimizerUtils.AssignFieldsAndPropsToTargetTable(option, tgtOption);
+                OptimizerUtils.AssignFieldsAndPropsToTargetTable(sd.Options[iOption], tgtOption);
+                // Add the params variable, which is created separately
+                tgtOption["params"] = sd.StateIndexRef[iOption];
+
                 optionsList.Add(tgtOption);
             }
 
@@ -42,6 +45,7 @@ namespace TorchSharp.PyBridge {
             for (int iState = 0; iState < sd.State.Count; iState++) {
                 var tgtState = new Hashtable();
                 OptimizerUtils.AssignFieldsAndPropsToTargetTable(sd.State[iState], tgtState);
+                
                 stateTable[iState] = tgtState;
             }
 
