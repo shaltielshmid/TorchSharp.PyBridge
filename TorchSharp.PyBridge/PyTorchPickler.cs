@@ -19,7 +19,7 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         /// <param name="file">Path to the file</param>
         /// <param name="source">The state_dict to pickle</param>
-        public static void PickleStateDict(string file, Hashtable source) {
+        public static void PickleStateDict(string file, IDictionary source) {
             PickleStateDict(File.OpenWrite(file), source);
         }
 
@@ -29,7 +29,7 @@ namespace TorchSharp.PyBridge {
         /// <param name="stream">Stream of the file to write</param>
         /// <param name="source">The state_dict to pickle</param>
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
-        public static void PickleStateDict(Stream stream, Hashtable source, bool leaveOpen = false) {
+        public static void PickleStateDict(Stream stream, IDictionary source, bool leaveOpen = false) {
             // Create a new archive
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen);
             // Start with writing out the pytorch version, #3

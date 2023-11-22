@@ -34,7 +34,7 @@ namespace TorchSharp.PyBridge {
                 }
             }
 
-            PyTorchPickler.PickleStateDict(stream, new Hashtable(sd), leaveOpen);
+            PyTorchPickler.PickleStateDict(stream, sd, leaveOpen);
 
             return module;
         }
