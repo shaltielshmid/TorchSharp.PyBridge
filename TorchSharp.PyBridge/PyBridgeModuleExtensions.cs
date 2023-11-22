@@ -1,7 +1,7 @@
 using static TorchSharp.torch.nn;
 
 namespace TorchSharp.PyBridge {
-    public static class TorchModuleExtensions {
+    public static class PyBridgeModuleExtensions {
 
         /// <summary>
         /// Save the parameters and buffers of the module to a python-compatible file to be loaded using `torch.load`.
@@ -86,7 +86,12 @@ namespace TorchSharp.PyBridge {
         /// </remarks>
         public static Module load_py(this Module module, System.IO.Stream stream, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null, bool leaveOpen = false) {
             // Unpickle the state dictionary into memory
-            var stateDict = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen);
+            var stateHashtable = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen);
+
+            // Convert the hashtable to a dictionary of string->tensor
+            var stateDict = new Dictionary<string, torch.Tensor>();
+            foreach (string key in stateHashtable.Keys)
+                stateDict.Add(key, (torch.Tensor)stateHashtable[key]!);
 
             // Load it in using the builtin function
             var (_, unexpectedKeys) = module.load_state_dict(stateDict, strict, skip);
