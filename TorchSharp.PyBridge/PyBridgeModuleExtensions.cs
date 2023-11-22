@@ -1,3 +1,4 @@
+using System.Collections;
 using static TorchSharp.torch.nn;
 
 namespace TorchSharp.PyBridge {
@@ -33,7 +34,7 @@ namespace TorchSharp.PyBridge {
                 }
             }
 
-            PyTorchPickler.PickleStateDict(stream, sd, leaveOpen);
+            PyTorchPickler.PickleStateDict(stream, new Hashtable(sd), leaveOpen);
 
             return module;
         }

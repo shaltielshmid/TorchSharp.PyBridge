@@ -1,4 +1,5 @@
 using Google.Protobuf.WellKnownTypes;
+using SkiaSharp;
 using System.Collections;
 using System.Reflection;
 using TorchSharp.Modules;
@@ -25,9 +26,32 @@ namespace TorchSharp.PyBridge {
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
         /// <returns></returns>
         public static void save_py(this OptimizerHelper optim, System.IO.Stream stream, bool leaveOpen = false) {
-            // Construct our state_dict, without the skip parameters
+            // Get our state_dict from our optimizer
             var sd = optim.state_dict();
-            //PyTorchPickler.PickleStateDict(stream, sd, leaveOpen);
+
+            // sd.Options -> ArrayList with all the properties
+            var optionsList = new ArrayList();
+            foreach (var option in sd.Options) {
+                var tgtOption = new Hashtable();
+                OptimizerUtils.AssignFieldsAndPropsToTargetTable(option, tgtOption);
+                optionsList.Add(tgtOption);
+            }
+
+            // sd.State -> Hashtable with the key being the index
+            var stateTable = new Hashtable();
+            for (int iState = 0; iState < sd.State.Count; iState++) {
+                var tgtState = new Hashtable();
+                OptimizerUtils.AssignFieldsAndPropsToTargetTable(sd.State[iState], tgtState);
+                stateTable[iState] = tgtState;
+            }
+
+            // Add it to the pickle format
+            var pickleSd = new Hashtable {
+                ["param_groups"] = optionsList,
+                ["state"] = stateTable
+            };
+
+            PyTorchPickler.PickleStateDict(stream, pickleSd, leaveOpen);
         }
 
 
@@ -62,77 +86,35 @@ namespace TorchSharp.PyBridge {
 
             // We will get the state dict from the optimizer, and then set the properties using reflection
             var optimStateDict = optim.state_dict();
-            
+
             // The stateDict should have two keys:
             // 1] "param_groups" => equivalent to Options
             var loadedParamGroups = (ArrayList)loadedStateDict["param_groups"]!;
+            // Store a mapping between state index in the TorchSharp model to state index in the PyTorch model
+            var stateIndexSharpToPyMap = new Dictionary<int, int>();
+
             // Assign all the fields in the param groups
             for (int iOption = 0; iOption < optimStateDict.Options.Count; iOption++) {
                 var reference = (Hashtable)loadedParamGroups[iOption]!;
-                AssignFields(optimStateDict.Options[iOption], reference);
-                AssignProperties(optimStateDict.Options[iOption], reference);
+                OptimizerUtils.AssignFieldsAndPropsFromReferenceTable(optimStateDict.Options[iOption], reference);
+
+                // Map the indicies stored in StateIndexRef to the indicies stored in "params"
+                var referenceIdxs = (ArrayList)reference["params"]!;
+                var targetIdxs = optimStateDict.StateIndexRef[iOption];
+                for (int iState = 0; iState < targetIdxs.Count; iState++)
+                    stateIndexSharpToPyMap[targetIdxs[iState]] = (int)referenceIdxs[iState]!;
             }
+
             // 2] "state" => equivalent to State
             var loadedState = (Hashtable)loadedStateDict["state"]!;
             // Assign all the fields in the state (note: we don't have to have all the values in the state)
             for (int iState = 0; iState < optimStateDict.State.Count; iState++) {
-                var reference = (Hashtable?)loadedState[iState];
+                var reference = (Hashtable?)loadedState[stateIndexSharpToPyMap[iState]];
                 if (reference is null || reference.Count == 0) continue;
 
-                AssignFields(optimStateDict.State[iState], reference);
-                AssignProperties(optimStateDict.State[iState], reference);
+                OptimizerUtils.AssignFieldsAndPropsFromReferenceTable(optimStateDict.State[iState], reference);
             }
         }
 
-        private static void AssignFields<T>(T obj, Hashtable referenceTable) where T : notnull {
-            // Go through all the properties
-            foreach (var field in obj.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
-                object? value = GetValue(field.Name, referenceTable);
-
-                // Set the value!
-                // If it's a tensor - first dispose the old tensor, and then set the new value
-                if (field.FieldType == typeof(torch.Tensor)) {
-                    var orig = (torch.Tensor?)field.GetValue(obj);
-                    if (orig is not null) 
-                        orig?.Dispose();
-                }
-                field.SetValue(obj, Convert.ChangeType(value, Nullable.GetUnderlyingType(field.FieldType) ?? field.FieldType));
-            }// next property
-        }
-
-        private static void AssignProperties<T>(T obj, Hashtable referenceTable) where T : notnull {
-            // Go through all the properties
-            foreach (var property in obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
-                object? value = GetValue(property.Name, referenceTable);
-
-                // Set the value!
-                // If it's a tensor - first dispose the old tensor, and then set the new value
-                if (property.PropertyType == typeof(torch.Tensor)) {
-                    var orig = (torch.Tensor?)property.GetValue(obj);
-                    if (orig is not null)
-                        orig?.Dispose();
-                }
-                property.SetValue(obj, Convert.ChangeType(value, Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType));
-            }// next property
-        }
-
-        private static object? GetValue(string name, Hashtable referenceTable) {
-            // Special handling for betas/eta/step_sizes/step:
-            return name switch {
-                "LearningRate" or "InitialLearningRate" => referenceTable["lr"],
-                "beta1" or "beta2" => ((object[])referenceTable["betas"]!)[name == "beta1" ? 0 : 1],
-                "etaminus" or "etaplus" => ((object[])referenceTable["etas"]!)[name == "etaminus" ? 0 : 1],
-                "min_step" or "max_step" => ((object[])referenceTable["step_sizes"]!)[name == "min_step" ? 0 : 1],
-                "step" => GetValueFromTensor((torch.Tensor)referenceTable["step"]!),
-                _ => referenceTable[name!]
-            };
-        }
-
-        private static object GetValueFromTensor(Tensor tensor) {
-            // Stored as a tensor, so return it as a float and dispose the tensor
-            var value = tensor.ToSingle();
-            tensor.Dispose();
-            return value;
-        }
     }
 }
