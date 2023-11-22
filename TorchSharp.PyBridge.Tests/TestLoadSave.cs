@@ -16,9 +16,10 @@ namespace TorchSharp.PyBridge {
             // The weights are all ones, so make sure that if we give it an array of ones we get
             // back as the result [5,5]
             var res = model.forward(torch.tensor(new[] { 1, 1, 1, 1, 1 }).@float());
-
-            Assert.That(res[0].ToSingle(), Is.EqualTo(5));
-            Assert.That(res[1].ToSingle(), Is.EqualTo(5));
+            Assert.Multiple(() => {
+                Assert.That(res[0].ToSingle(), Is.EqualTo(5));
+                Assert.That(res[1].ToSingle(), Is.EqualTo(5));
+            });
         }
 
         [Test]
@@ -43,7 +44,7 @@ namespace TorchSharp.PyBridge {
             byte[] compBytes = new ZipArchive(ms).ExtractAllContentBytes();
             byte[] goldBytes = new ZipArchive(File.OpenRead("pysave_test.bin")).ExtractAllContentBytes();
 
-            Assert.IsTrue(Enumerable.SequenceEqual(goldBytes, compBytes));
+            Assert.That(Enumerable.SequenceEqual(goldBytes, compBytes), Is.True);
         }
 
 
