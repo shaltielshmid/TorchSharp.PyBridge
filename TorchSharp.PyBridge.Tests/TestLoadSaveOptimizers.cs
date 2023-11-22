@@ -8,6 +8,10 @@ namespace TorchSharp.PyBridge.Tests {
     public class TestLoadSaveOptimizers {
 
         private void TestSaveOptim<T>(Func<IEnumerable<Parameter>, T> func, bool withLoss = false) where T : OptimizerHelper {
+            // Set the manual seed so that the randoms don't change between runs
+            // and our tests will succeed
+            torch.manual_seed(423812);
+
             var l1 = Linear(10, 10, true);
             var l2 = Linear(10, 10, true);
             var seq = Sequential(l1, l2);
