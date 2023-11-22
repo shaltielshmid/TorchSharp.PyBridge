@@ -26,13 +26,15 @@ namespace TorchSharp.PyBridge {
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
         /// <returns></returns>
         public static void save_py(this OptimizerHelper optim, System.IO.Stream stream, bool leaveOpen = false) {
+            using var d = torch.NewDisposeScope(); // Create a new dispose scope for any tensors we create
+
             // Get our state_dict from our optimizer
             var sd = optim.state_dict();
 
             // sd.Options -> ArrayList with all the properties
             var optionsList = new ArrayList();
             for (int iOption = 0; iOption < sd.Options.Count; iOption++) {
-                var tgtOption = new Hashtable();
+                var tgtOption = new Dictionary<object, object>();
                 OptimizerUtils.AssignFieldsAndPropsToTargetTable(sd.Options[iOption], tgtOption);
                 // Add the params variable, which is created separately
                 tgtOption["params"] = sd.StateIndexRef[iOption];
@@ -40,17 +42,17 @@ namespace TorchSharp.PyBridge {
                 optionsList.Add(tgtOption);
             }
 
-            // sd.State -> Hashtable with the key being the index
-            var stateTable = new Hashtable();
+            // sd.State -> IDictionary with the key being the index
+            var stateTable = new Dictionary<object, object>();
             for (int iState = 0; iState < sd.State.Count; iState++) {
-                var tgtState = new Hashtable();
+                var tgtState = new Dictionary<object, object>();
                 OptimizerUtils.AssignFieldsAndPropsToTargetTable(sd.State[iState], tgtState);
                 
                 stateTable[iState] = tgtState;
             }
 
             // Add it to the pickle format
-            var pickleSd = new Hashtable {
+            var pickleSd = new Dictionary<object, object> {
                 ["param_groups"] = optionsList,
                 ["state"] = stateTable
             };
@@ -99,7 +101,7 @@ namespace TorchSharp.PyBridge {
 
             // Assign all the fields in the param groups
             for (int iOption = 0; iOption < optimStateDict.Options.Count; iOption++) {
-                var reference = (Hashtable)loadedParamGroups[iOption]!;
+                var reference = (IDictionary)loadedParamGroups[iOption]!;
                 OptimizerUtils.AssignFieldsAndPropsFromReferenceTable(optimStateDict.Options[iOption], reference);
 
                 // Map the indicies stored in StateIndexRef to the indicies stored in "params"
@@ -110,10 +112,10 @@ namespace TorchSharp.PyBridge {
             }
 
             // 2] "state" => equivalent to State
-            var loadedState = (Hashtable)loadedStateDict["state"]!;
+            var loadedState = (IDictionary)loadedStateDict["state"]!;
             // Assign all the fields in the state (note: we don't have to have all the values in the state)
             for (int iState = 0; iState < optimStateDict.State.Count; iState++) {
-                var reference = (Hashtable?)loadedState[stateIndexSharpToPyMap[iState]];
+                var reference = (IDictionary?)loadedState[stateIndexSharpToPyMap[iState]];
                 if (reference is null || reference.Count == 0) continue;
 
                 OptimizerUtils.AssignFieldsAndPropsFromReferenceTable(optimStateDict.State[iState], reference);

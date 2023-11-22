@@ -3,7 +3,7 @@ using System.IO.Compression;
 using TorchSharp.PyBridge.Tests;
 using static TorchSharp.torch.nn;
 
-namespace TorchSharp.PyBridge {
+namespace TorchSharp.PyBridge.Tests {
 
     public class TestLoadSaveModules {
 
@@ -12,7 +12,7 @@ namespace TorchSharp.PyBridge {
             // We already saved a python module using `torch.save` to the file `pyload_test.model`
             // Load in that model and make sure that the results are the same
             var model = Sequential(("lin1", Linear(5, 1, hasBias: false)), ("lin2", Linear(1, 2, hasBias: false)));
-            model.load_py("pyload_test.bin");
+            model.load_py("pickled_modules/module_load.pth");
 
             // The weights are all ones, so make sure that if we give it an array of ones we get
             // back as the result [5,5]
@@ -39,7 +39,7 @@ namespace TorchSharp.PyBridge {
             ms.Seek(0, SeekOrigin.Begin);
 
             // Compare the bytes to pyload_test
-            Assert.That(SaveUtils.CompareSavedModules(ms, File.OpenRead("pysave_test.bin")), Is.True);
+            Assert.That(SaveUtils.CompareSavedModules(ms, File.OpenRead("pickled_modules/module_save.bin")), Is.True);
         }
 
 

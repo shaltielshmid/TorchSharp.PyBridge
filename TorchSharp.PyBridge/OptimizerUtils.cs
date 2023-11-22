@@ -9,7 +9,7 @@ using static TorchSharp.torch;
 
 namespace TorchSharp.PyBridge {
     internal static class OptimizerUtils {
-        internal static void AssignFieldsAndPropsToTargetTable<T>(T obj, Hashtable targetTable) where T : notnull {
+        internal static void AssignFieldsAndPropsToTargetTable<T>(T obj, IDictionary targetTable) where T : notnull {
             // Go through all the fields
             foreach (var field in obj.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
                 object? value = field.GetValue(obj);
@@ -25,10 +25,10 @@ namespace TorchSharp.PyBridge {
             }// next property
         }
 
-        internal static void AssignFieldsAndPropsFromReferenceTable<T>(T obj, Hashtable referenceTable) where T : notnull {
+        internal static void AssignFieldsAndPropsFromReferenceTable<T>(T obj, IDictionary referenceTable) where T : notnull {
             // Go through all the fields
             foreach (var field in obj.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
-                object? value = GetValueFromReferenceTable(field.Name, referenceTable);
+                object? value = GetValueFromReferenceTable(field.Name, field.FieldType, referenceTable);
 
                 // Set the value!
                 // If it's a tensor - first dispose the old tensor, and then set the new value
@@ -42,7 +42,7 @@ namespace TorchSharp.PyBridge {
 
             // Go through all the properties
             foreach (var property in obj.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)) {
-                object? value = GetValueFromReferenceTable(property.Name, referenceTable);
+                object? value = GetValueFromReferenceTable(property.Name, property.PropertyType, referenceTable);
 
                 // Set the value!
                 // If it's a tensor - first dispose the old tensor, and then set the new value
@@ -55,26 +55,29 @@ namespace TorchSharp.PyBridge {
             }// next property
         }
 
-        private static object? GetValueFromReferenceTable(string name, Hashtable referenceTable) {
+        private static object? GetValueFromReferenceTable(string name, Type type, IDictionary referenceTable) {
             // Special handling for lrs/betas/eta/step_sizes/step:
             return name switch {
                 "LearningRate" or "InitialLearningRate" => referenceTable["lr"],
                 "beta1" or "beta2" => ((object[])referenceTable["betas"]!)[name == "beta1" ? 0 : 1],
                 "etaminus" or "etaplus" => ((object[])referenceTable["etas"]!)[name == "etaminus" ? 0 : 1],
                 "min_step" or "max_step" => ((object[])referenceTable["step_sizes"]!)[name == "min_step" ? 0 : 1],
-                "step" => GetValueFromTensor((torch.Tensor)referenceTable["step"]!),
-                _ => referenceTable[name!]
+                _ when type == typeof(torch.Tensor) => referenceTable[name!],
+                _ => GetValueFromMaybeTensor(referenceTable[name]!),
             };
         }
 
-        private static object GetValueFromTensor(Tensor tensor) {
+        private static object? GetValueFromMaybeTensor(object obj) {
+            if (obj is null || obj is not torch.Tensor)
+                return obj;
             // Stored as a tensor, so return it as a float and dispose the tensor
+            var tensor = (torch.Tensor)obj;
             var value = tensor.ToSingle();
             tensor.Dispose();
             return value;
         }
 
-        private static void SetValueInTargetTable(string name, object? value, Hashtable targetTable) {
+        private static void SetValueInTargetTable(string name, object? value, IDictionary targetTable) {
             // Special lrs/handling for betas/eta/step_sizes/step:
             switch (name) {
                 case "InitialLearningRate": break;
@@ -87,7 +90,7 @@ namespace TorchSharp.PyBridge {
             }
         }
 
-        private static void Set2ItemTupleValue(Hashtable targetTable, string key, object? value, int idx) {
+        private static void Set2ItemTupleValue(IDictionary targetTable, string key, object? value, int idx) {
             if (targetTable[key] is null)
                 targetTable[key] = new object?[2];
             ((object?[])targetTable[key]!)[idx] = value;

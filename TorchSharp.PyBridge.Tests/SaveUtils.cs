@@ -1,12 +1,23 @@
-﻿using System;
+﻿using NUnit.Framework;
+using System;
 using System.Collections.Generic;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using TorchSharp.Modules;
 
 namespace TorchSharp.PyBridge.Tests {
     internal static class SaveUtils {
+        public static bool SaveAndCompare(OptimizerHelper optim, string file) {
+            // Save the model to a memory stream
+            var ms = new MemoryStream();
+            optim.save_py(ms, leaveOpen: true);
+            ms.Position = 0;
+
+            // Compare the bytes to pyload_test
+            return CompareSavedModules(ms, File.OpenRead(file));
+        }
         public static bool CompareSavedModules(Stream baseFile, Stream targetFile) {
             // One catch: They are zip files, and therefore the timestamp is embedded 
             // in the bytes. Therefore, we are going to extract every entry in the archive

@@ -25,6 +25,8 @@ namespace TorchSharp.PyBridge {
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
         /// <returns></returns>
         public static Module save_py(this Module module, System.IO.Stream stream, IList<string>? skip = null, bool leaveOpen = false) {
+            using var d = torch.NewDisposeScope(); // Create a new dispose scope for any tensors we create
+
             // Construct our state_dict, without the skip parameters
             var sd = module.state_dict();
             if (skip is not null) {
