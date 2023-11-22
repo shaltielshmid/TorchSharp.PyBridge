@@ -1,10 +1,11 @@
 using NUnit.Framework;
 using System.IO.Compression;
+using TorchSharp.PyBridge.Tests;
 using static TorchSharp.torch.nn;
 
 namespace TorchSharp.PyBridge {
 
-    public class TestLoadSave {
+    public class TestLoadSaveModules {
 
         [Test]
         public void TestPythonModuleLoad() {
@@ -38,13 +39,7 @@ namespace TorchSharp.PyBridge {
             ms.Seek(0, SeekOrigin.Begin);
 
             // Compare the bytes to pyload_test
-            // One catch: They are zip files, and therefore the timestamp is embedded 
-            // in the bytes. Therefore, we are going to extract every entry in the archive
-            // and compare the raw bytes then.
-            byte[] compBytes = new ZipArchive(ms).ExtractAllContentBytes();
-            byte[] goldBytes = new ZipArchive(File.OpenRead("pysave_test.bin")).ExtractAllContentBytes();
-
-            Assert.That(Enumerable.SequenceEqual(goldBytes, compBytes), Is.True);
+            Assert.That(SaveUtils.CompareSavedModules(ms, File.OpenRead("pysave_test.bin")), Is.True);
         }
 
 
@@ -52,13 +47,5 @@ namespace TorchSharp.PyBridge {
 
     }
 
-    static class ZipArchiveExtensions {
-        public static byte[] ExtractAllContentBytes(this ZipArchive archive) {
-            var ms = new MemoryStream();
-            foreach (var entry in archive.Entries.OrderBy(e => e.FullName))
-                entry.Open().CopyTo(ms);
-
-            return ms.ToArray();
-        }
-    }
+    
 }
