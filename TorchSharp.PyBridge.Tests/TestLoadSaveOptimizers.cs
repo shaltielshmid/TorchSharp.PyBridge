@@ -385,7 +385,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(state.exp_avg_sq, Is.Not.Null);
                 Assert.That(state.max_exp_avg_sq, Is.Not.Null);
             });
-            
+
             state = (sd.State[3] as Modules.Adam.State)!;
             Assert.Multiple(() => {
                 Assert.That(state.step, Is.EqualTo(1));
@@ -415,7 +415,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(sd.Options, Has.Count.EqualTo(2));
                 Assert.That(sd.State, Has.Count.EqualTo(4));
             });
-            
+
             var options = (sd.Options[0] as Modules.AdamW.Options)!;
             Assert.Multiple(() => {
                 Assert.That(options.beta1, Is.EqualTo(0.8));
@@ -431,7 +431,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(options.LearningRate, Is.EqualTo(0.01));
                 Assert.That(options.amsgrad, Is.True);
             });
-            
+
 
             var state = (sd.State[0] as Modules.AdamW.State)!;
             Assert.Multiple(() => {
@@ -502,7 +502,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(options.LearningRate, Is.EqualTo(0.01));
                 Assert.That(options.weight_decay, Is.EqualTo(0.3));
             });
-            
+
             foreach (var st in sd.State) {
                 var state = (st as Modules.NAdam.State)!;
                 Assert.Multiple(() => {
@@ -604,7 +604,7 @@ namespace TorchSharp.PyBridge.Tests {
                     Assert.That(state.step, Is.EqualTo(1));
                     Assert.That(state.square_avg, Is.Not.Null);
                     Assert.That(state.acc_delta, Is.Not.Null);
-               });
+                });
             }
         }
 
@@ -622,7 +622,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(sd.Options, Has.One.Items);
                 Assert.That(sd.State, Has.Count.EqualTo(2));
             });
-            
+
             foreach (var opts in sd.Options) {
                 var options = (opts as Modules.Adagrad.Options)!;
                 Assert.Multiple(() => {
@@ -661,7 +661,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(sd.Options, Has.Count.EqualTo(2));
                 Assert.That(sd.State, Has.Count.EqualTo(4));
             });
-            
+
             var options = (sd.Options[0] as Modules.Adamax.Options)!;
             Assert.Multiple(() => {
                 Assert.That(options.beta1, Is.EqualTo(0.8));
@@ -669,7 +669,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(options.LearningRate, Is.EqualTo(0.001));
                 Assert.That(options.weight_decay, Is.EqualTo(0));
             });
-            
+
             options = (sd.Options[1] as Modules.Adamax.Options)!;
             Assert.Multiple(() => {
                 Assert.That(options.beta1, Is.EqualTo(0.7));
@@ -677,7 +677,7 @@ namespace TorchSharp.PyBridge.Tests {
                 Assert.That(options.LearningRate, Is.EqualTo(0.01));
                 Assert.That(options.weight_decay, Is.EqualTo(0.3));
             });
-            
+
             foreach (var state in sd.State.Cast<Adamax.State>()) {
                 Assert.Multiple(() => {
                     Assert.That(state.step, Is.EqualTo(1));
@@ -685,6 +685,106 @@ namespace TorchSharp.PyBridge.Tests {
                     Assert.That(state.exp_inf, Is.Not.Null);
                 });
             }
+        }
+        [Test]
+        public void TestLoadAdamEmptyState() {
+            var lin1 = torch.nn.Linear(10, 10);
+            var lin2 = torch.nn.Linear(10, 10);
+            var lin3 = torch.nn.Linear(10, 10);
+
+            var pgs = new Adam.ParamGroup[] {
+                new () { Parameters = lin1.parameters(), Options = new() { LearningRate = 0.00005 } },
+                new (lin2.parameters(), lr: 0.00003, amsgrad: false, beta1: 0.25),
+                new (lin3.parameters(), lr: 0.00003, amsgrad: false, beta1: 0.9, beta2: 9.99)
+            };
+
+            double learning_rate = 0.00004f;
+            var optimizer = torch.optim.Adam(pgs, learning_rate);
+
+            // Calculate loss for lin3, so that it steps through
+            torch.nn.functional.mse_loss(lin3.call(torch.rand(10)), torch.rand(10)).backward();
+            optimizer.step();
+
+            optimizer.load_py("pickled_optimizers/adam_emptystate_load.pth");
+
+            var sd = optimizer.state_dict();
+            Assert.Multiple(() => {
+                Assert.That(sd.Options, Has.Count.EqualTo(3));
+                Assert.That(sd.State, Has.Count.EqualTo(6));
+            });
+
+            var options = (sd.Options[0] as Modules.Adam.Options)!;
+            Assert.Multiple(() => {
+                Assert.That(options.beta1, Is.EqualTo(0.8));
+                Assert.That(options.beta2, Is.EqualTo(0.9));
+                Assert.That(options.LearningRate, Is.EqualTo(0.001));
+                Assert.That(options.amsgrad, Is.False);
+            });
+
+            options = (sd.Options[1] as Modules.Adam.Options)!;
+            Assert.Multiple(() => {
+                Assert.That(options.beta1, Is.EqualTo(0.7));
+                Assert.That(options.beta2, Is.EqualTo(0.79));
+                Assert.That(options.LearningRate, Is.EqualTo(0.01));
+                Assert.That(options!.amsgrad, Is.True);
+            });
+
+            options = (sd.Options[2] as Modules.Adam.Options)!;
+            Assert.Multiple(() => {
+                Assert.That(options.beta1, Is.EqualTo(0.6));
+                Assert.That(options.beta2, Is.EqualTo(0.69));
+                Assert.That(options.LearningRate, Is.EqualTo(0.01));
+                Assert.That(options!.amsgrad, Is.True);
+            });
+
+            var state = (sd.State[0] as Modules.Adam.State)!;
+            Assert.Multiple(() => {
+                Assert.That(state.step, Is.EqualTo(1));
+                Assert.That(state.exp_avg, Is.Not.Null);
+                Assert.That(state.exp_avg_sq, Is.Not.Null);
+                Assert.That(state.max_exp_avg_sq, Is.Null);
+            });
+
+            state = (sd.State[1] as Modules.Adam.State)!;
+            Assert.Multiple(() => {
+                Assert.That(state.step, Is.EqualTo(1));
+                Assert.That(state.exp_avg, Is.Not.Null);
+                Assert.That(state.exp_avg_sq, Is.Not.Null);
+                Assert.That(state.max_exp_avg_sq, Is.Null);
+            });
+
+            state = (sd.State[2] as Modules.Adam.State)!;
+            Assert.Multiple(() => {
+                Assert.That(state.step, Is.EqualTo(1));
+                Assert.That(state.exp_avg, Is.Not.Null);
+                Assert.That(state.exp_avg_sq, Is.Not.Null);
+                Assert.That(state.max_exp_avg_sq, Is.Not.Null);
+            });
+
+            state = (sd.State[3] as Modules.Adam.State)!;
+            Assert.Multiple(() => {
+                Assert.That(state.step, Is.EqualTo(1));
+                Assert.That(state.exp_avg, Is.Not.Null);
+                Assert.That(state.exp_avg_sq, Is.Not.Null);
+                Assert.That(state.max_exp_avg_sq, Is.Not.Null);
+            });
+
+            // Make sure lin3 was reset to the defaults
+            state = (sd.State[4] as Modules.Adam.State)!;
+            Assert.Multiple(() => {
+                Assert.That(state.step, Is.EqualTo(0));
+                Assert.That(torch.count_nonzero(state.exp_avg).ToInt32(), Is.EqualTo(0));
+                Assert.That(torch.count_nonzero(state.exp_avg_sq).ToInt32(), Is.EqualTo(0));
+                Assert.That(state.max_exp_avg_sq, Is.Not.Null);
+            });
+
+            state = (sd.State[5] as Modules.Adam.State)!;
+            Assert.Multiple(() => {
+                Assert.That(state.step, Is.EqualTo(0));
+                Assert.That(torch.count_nonzero(state.exp_avg).ToInt32(), Is.EqualTo(0));
+                Assert.That(torch.count_nonzero(state.exp_avg_sq).ToInt32(), Is.EqualTo(0));
+                Assert.That(state.max_exp_avg_sq, Is.Not.Null);
+            });
         }
     }
 }

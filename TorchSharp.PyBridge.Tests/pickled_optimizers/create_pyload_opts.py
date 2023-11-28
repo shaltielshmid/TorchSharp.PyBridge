@@ -2,9 +2,7 @@ import torch
 from torch.nn import Linear
 from torch.optim import *
 
-lin = Linear(10, 10)
-
-def calc_loss(opt, linears=[lin]):
+def calc_loss(opt, linears):
     opt.zero_grad()
     out = torch.rand(10)
     for lin in linears: out = lin(out)
@@ -12,14 +10,16 @@ def calc_loss(opt, linears=[lin]):
     opt.step()
 
 def save_sgd():
+    lin = Linear(10, 10)
     opt = SGD(lin.parameters(), 0.01, 0.1)
-    calc_loss(opt)
+    calc_loss(opt, [lin])
     torch.save(opt.state_dict(), 'sgd_load.pth')
 save_sgd()
 
 def save_asgd():
+    lin = Linear(10, 10)
     opt = ASGD(lin.parameters(), 0.01, 1e-3, 0.65, 1e5)
-    calc_loss(opt)
+    calc_loss(opt, [lin])
     torch.save(opt.state_dict(), 'asgd_load.pth')
 save_asgd()
 
@@ -87,8 +87,9 @@ def save_adadelta():
 save_adadelta()
 
 def save_adagrad():
+    lin = Linear(10, 10)
     opt = Adagrad(lin.parameters(), lr=0.001, lr_decay=0.85, weight_decay=0.3)
-    calc_loss(opt)
+    calc_loss(opt, [lin])
     torch.save(opt.state_dict(), 'adagrad_load.pth')
 save_adagrad()
 
@@ -100,3 +101,14 @@ def save_adamax():
     calc_loss(opt, [lin1, lin2])
     torch.save(opt.state_dict(), 'adamax_load.pth')
 save_adamax()
+
+def save_adam_empty_state():
+    lin1 = Linear(10, 10)
+    lin2 = Linear(10, 10)
+    lin3 = Linear(10, 10)
+    opt = Adam(lin1.parameters(), lr=0.001, betas=(0.8, 0.9), amsgrad=False)
+    opt.add_param_group(dict(params=lin2.parameters(), betas=(0.7, 0.79), lr=0.01, amsgrad=True))
+    opt.add_param_group(dict(params=lin3.parameters(), betas=(0.6, 0.69), lr=0.01, amsgrad=True))
+    calc_loss(opt, [lin1, lin2])
+    torch.save(opt.state_dict(), 'adam_emptystate_load.pth')
+save_adam_empty_state()

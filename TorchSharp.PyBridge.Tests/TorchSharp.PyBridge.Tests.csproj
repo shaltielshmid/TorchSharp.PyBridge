@@ -75,6 +75,9 @@
     <None Update="pickled_optimizers\AdamW_withloss_save.bin">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="pickled_optimizers\adam_emptystate_load.pth">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Update="pickled_optimizers\adam_load.pth">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

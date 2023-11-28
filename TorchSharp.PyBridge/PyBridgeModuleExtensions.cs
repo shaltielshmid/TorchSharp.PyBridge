@@ -88,6 +88,9 @@ namespace TorchSharp.PyBridge {
         /// dictionary has been fully loaded. 
         /// </remarks>
         public static Module load_py(this Module module, System.IO.Stream stream, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null, bool leaveOpen = false) {
+            // Create a dispose score so that we don't keep anyof the loaded tensors past this function
+            using var d = torch.NewDisposeScope();
+
             // Unpickle the state dictionary into memory
             var stateHashtable = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen);
 
