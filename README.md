@@ -12,6 +12,8 @@ TorchSharp.PyBridge is an extension library for [TorchSharp](https://github.com/
 
 - **save_py Method**: Save TorchSharp models in a format that can be directly loaded in PyTorch (using `torch.load`), offering cross-platform model compatibility.
 
+As of version 1.1.0, there is now support for loading and saving the `optim.state_dict` in the `PyTorch` format as well. 
+
 ## Getting Started
 
 ### Installation

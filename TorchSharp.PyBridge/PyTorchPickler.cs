@@ -1,13 +1,16 @@
+using System.Collections;
 using System.IO.Compression;
 using System.Text;
 using Razorvine.Pickle;
+using TorchSharp.Modules;
 
 namespace TorchSharp.PyBridge {
     static class PyTorchPickler {
         static PyTorchPickler() {
             Pickler.registerCustomPickler(typeof(Storage), new StoragePickler());
             Pickler.registerCustomDeconstructor(typeof(EmptyOrderedDict), new EmptyOrderedDictDeconstructor());
-            Pickler.registerCustomDeconstructor(typeof(TensorWrapper), new TensorWrapperDeconstructor());
+            Pickler.registerCustomDeconstructor(typeof(torch.Tensor), new TensorDeconstructor());
+            Pickler.registerCustomDeconstructor(typeof(Parameter), new TensorDeconstructor());
         }
 
         static readonly byte MinProducedFileFormatVersion = 0x3;
@@ -16,7 +19,7 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         /// <param name="file">Path to the file</param>
         /// <param name="source">The state_dict to pickle</param>
-        public static void PickleStateDict(string file, Dictionary<string, torch.Tensor> source) {
+        public static void PickleStateDict(string file, IDictionary source) {
             PickleStateDict(File.OpenWrite(file), source);
         }
 
@@ -26,7 +29,7 @@ namespace TorchSharp.PyBridge {
         /// <param name="stream">Stream of the file to write</param>
         /// <param name="source">The state_dict to pickle</param>
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
-        public static void PickleStateDict(Stream stream, Dictionary<string, torch.Tensor> source, bool leaveOpen = false) {
+        public static void PickleStateDict(Stream stream, IDictionary source, bool leaveOpen = false) {
             // Create a new archive
             using var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen);
             // Start with writing out the pytorch version, #3
@@ -37,12 +40,9 @@ namespace TorchSharp.PyBridge {
             // using the persistentId
             var pickler = new CustomPickler(archive);
 
-            // Wrap the source tensors in a wrapper so that we can identify them during the deconstruction
-            var wrappedSource = source.ToDictionary(kvp => kvp.Key, kvp => new TensorWrapper(kvp.Value));
-
             // Create and dump our main data.pkl file
             using var ms = new MemoryStream();
-            pickler.dump(wrappedSource, ms);
+            pickler.dump(source, ms);
 
             // Copy it into the entry
             var dataPkl = archive.CreateEntry("model/data.pkl");
@@ -69,12 +69,12 @@ namespace TorchSharp.PyBridge {
             }
 
             protected override bool persistentId(object pid, out object? newpid) {
-                if (pid is not torch.Tensor) {
+                if (pid is not TensorWrapper) {
                     newpid = null;
                     return false;
                 }
-
-                var tensor = (torch.Tensor)pid;
+                
+                var tensor = ((TensorWrapper)pid).Tensor;
 
                 bool copied = false;
                 if (tensor.device_type != DeviceType.CPU) {
@@ -161,7 +161,8 @@ namespace TorchSharp.PyBridge {
 
         /// <summary>
         /// A wrapper class which just contains the tensor, in order for the pickler to be able to assign
-        /// the class to the TensorWrapper deconstructor
+        /// the class to the TensorWrapper persistentId. We need a wrapper since we need to differentiate
+        /// between the deconstructor handler and the persistentId handler.
         /// </summary>
         class TensorWrapper {
             public torch.Tensor Tensor { get; set; }
@@ -220,7 +221,7 @@ namespace TorchSharp.PyBridge {
         /// members needed for reconstructing. The PyTorch reconstructor is a function `torch._utils._rebuild_tensor_v2`
         /// And the arguments for that function are what are returned by the `deconstruct` function.
         /// </summary>
-        class TensorWrapperDeconstructor : IObjectDeconstructor {
+        class TensorDeconstructor : IObjectDeconstructor {
             public string get_module() {
                 return "torch._utils";
             }
@@ -230,7 +231,7 @@ namespace TorchSharp.PyBridge {
             }
 
             public object[] deconstruct(object obj) {
-                var tensor = ((TensorWrapper)obj).Tensor;
+                var tensor = (torch.Tensor)obj;
                 // Arg 0: Tensor
                 // Arg 1: storage_offset
                 // Arg 2: tensor_size (the dimension, is important)
@@ -238,7 +239,7 @@ namespace TorchSharp.PyBridge {
                 // Arg 4: requires_grad
                 // Arg 5: backward_hooks, we don't support adding them in and it's not recommended in PyTorch to serialize them.
                 return new object[] {
-                    tensor,
+                    new TensorWrapper(tensor),
                     tensor.storage_offset(),
                     tensor.shape.Select(i => (object)i).ToArray(), // cast to object so it's stored as tuple not array
                     tensor.stride().Select(i => (object)i).ToArray(), // cast to object so it's stored as tuple not array

@@ -17,7 +17,7 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         /// <param name="file">Path to the file</param>
         /// <returns>The loaded state_dict</returns>
-        public static Dictionary<string, torch.Tensor> UnpickleStateDict(string file) {
+        public static Hashtable UnpickleStateDict(string file) {
             return UnpickleStateDict(File.OpenRead(file));
         }
 
@@ -27,7 +27,7 @@ namespace TorchSharp.PyBridge {
         /// <param name="stream">Stream of the file to load</param>
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
         /// <returns>The loaded state_dict</returns>
-        public static Dictionary<string, torch.Tensor> UnpickleStateDict(Stream stream, bool leaveOpen = false) {
+        public static Hashtable UnpickleStateDict(Stream stream, bool leaveOpen = false) {
             // Make sure it's a zip file
             // If it's not, then it was saved using legacy torch save and we don't support it (yet, at least)
             // Check the local file signature
@@ -47,13 +47,7 @@ namespace TorchSharp.PyBridge {
             // using the persistentId
             var unpickler = new CustomUnpickler(archive);
             // The unpickle returns a hash mapping ["key"] to the tensor
-            var stateHash = (Hashtable)unpickler.load(pklEntry.Open());
-
-            var stateDict = new Dictionary<string, torch.Tensor>();
-            foreach (string key in stateHash.Keys)
-                stateDict.Add(key, (torch.Tensor)stateHash[key]!);
-
-            return stateDict;
+            return (Hashtable)unpickler.load(pklEntry.Open());
         }
 
         /// <summary>
@@ -177,7 +171,11 @@ namespace TorchSharp.PyBridge {
                 // Arg 5: backward_hooks, we don't support adding them in and it's not recommended
                 // in PyTorch to serialize them.
 
-                torch.Tensor t = torch.zeros(shape, arg0.dtype).as_strided(shape, stride, storageOffset);
+                // If there is no shape, then the shape is just 1
+                // Since we have two operations here - we want to make sure to dispose the temporary.
+                torch.Tensor t = shape.Length == 0 ? torch.zeros(1, arg0.dtype)
+                                                   : torch.WrappedTensorDisposeScope(() =>
+                                                            torch.zeros(shape, arg0.dtype).as_strided(shape, stride, storageOffset));
                 t.bytes = arg0.data;
                 return t;
             }

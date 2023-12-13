@@ -1,7 +1,8 @@
+using System.Collections;
 using static TorchSharp.torch.nn;
 
 namespace TorchSharp.PyBridge {
-    public static class TorchModuleExtensions {
+    public static class PyBridgeModuleExtensions {
 
         /// <summary>
         /// Save the parameters and buffers of the module to a python-compatible file to be loaded using `torch.load`.
@@ -24,6 +25,8 @@ namespace TorchSharp.PyBridge {
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
         /// <returns></returns>
         public static Module save_py(this Module module, System.IO.Stream stream, IList<string>? skip = null, bool leaveOpen = false) {
+            using var d = torch.NewDisposeScope(); // Create a new dispose scope for any tensors we create
+
             // Construct our state_dict, without the skip parameters
             var sd = module.state_dict();
             if (skip is not null) {
@@ -85,8 +88,16 @@ namespace TorchSharp.PyBridge {
         /// dictionary has been fully loaded. 
         /// </remarks>
         public static Module load_py(this Module module, System.IO.Stream stream, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null, bool leaveOpen = false) {
+            // Create a dispose score so that we don't keep anyof the loaded tensors past this function
+            using var d = torch.NewDisposeScope();
+
             // Unpickle the state dictionary into memory
-            var stateDict = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen);
+            var stateHashtable = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen);
+
+            // Convert the hashtable to a dictionary of string->tensor
+            var stateDict = new Dictionary<string, torch.Tensor>();
+            foreach (string key in stateHashtable.Keys)
+                stateDict.Add(key, (torch.Tensor)stateHashtable[key]!);
 
             // Load it in using the builtin function
             var (_, unexpectedKeys) = module.load_state_dict(stateDict, strict, skip);
