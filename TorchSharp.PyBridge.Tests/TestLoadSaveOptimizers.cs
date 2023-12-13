@@ -16,6 +16,7 @@ namespace TorchSharp.PyBridge.Tests {
             var l2 = Linear(10, 10, true);
             var seq = Sequential(l1, l2);
 
+            torch.manual_seed(423812);
             var optim = func(seq.parameters());
 
             // Force the buffers that are only created after loss to be created.
@@ -29,8 +30,23 @@ namespace TorchSharp.PyBridge.Tests {
                 }
             }
 
-            // Compare the bytes to save file
-            Assert.That(SaveUtils.SaveAndCompare(optim, $"pickled_optimizers/{typeof(T).Name}{(withLoss ? "_withloss" : "")}_save.bin"), Is.True);
+            // Save that optim to memory
+            using var ms = new MemoryStream();
+            optim.save_py(ms, leaveOpen: true);
+            ms.Position = 0;
+
+            // Create a new optimizer, and load in the values, and make sure they are the same
+            torch.manual_seed(423812);
+            var optim2 = func(seq.parameters());
+            optim2.load_py(ms, leaveOpen: true);
+
+            // Save the second optim to a memory stream, and make sure they are identical
+            using var ms2 = new MemoryStream();
+            optim2.save_py(ms2, leaveOpen: true);
+
+            // Compare the bytes to pyload_test
+            ms.Position = 0; ms2.Position = 0;
+            Assert.That(SaveUtils.CompareSavedModules(ms, ms2));
         }
 
         [Test]

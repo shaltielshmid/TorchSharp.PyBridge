@@ -1,6 +1,9 @@
 import torch
 from torch.optim import *
 from torch.nn import Linear, Sequential
+import sys, os
+
+path = sys.argv[1]
 
 # base sequence for all of these
 l1 = Linear(10, 10, bias=True);
@@ -14,10 +17,10 @@ for (optim, name) in [(Adadelta, "Adadelta"), (Adagrad, "Adagrad"), (Adam, "Adam
     assert opt.param_groups[0]['lr'] == 0.99
      
     # load and make sure the lr changed
-    opt.load_state_dict(torch.load(name + '_save.bin'))
+    opt.load_state_dict(torch.load(os.path.join(name + '_save.bin')))
     assert opt.param_groups[0]['lr'] != 0.99
 
     # load the after loss model, and confirm that it loads without error
-    opt.load_state_dict(torch.load(name + '_withloss_save.bin'))
-    # TODO: check that the parameters were actually loaded
+    opt.load_state_dict(torch.load(os.path.join(path, '_withloss_save.bin')))
+    # TODO: do a better test and check that the parameters were actually loaded
 

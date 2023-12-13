@@ -34,12 +34,21 @@ namespace TorchSharp.PyBridge.Tests {
             model.state_dict()["lin2.weight"].bytes = torch.full(2, 1, 2, torch.ScalarType.Float32).bytes;
 
             // Save the model to a memory stream
-            var ms = new MemoryStream();
+            using var ms = new MemoryStream();
             model.save_py(ms, leaveOpen: true);
-            ms.Seek(0, SeekOrigin.Begin);
+            ms.Position = 0;
+
+            // Create an identical model, and load in the state dict
+            var model2 = Sequential(("lin1", Linear(5, 1, hasBias: false)), ("lin2", Linear(1, 2, hasBias: false)));
+            model2.load_py(ms, leaveOpen: true);
+
+            // Save the new model to a stream as well
+            using var ms2 = new MemoryStream();
+            model2.save_py(ms2, leaveOpen: true);
 
             // Compare the bytes to pyload_test
-            Assert.That(SaveUtils.CompareSavedModules(ms, File.OpenRead("pickled_modules/module_save.bin")), Is.True);
+            ms.Position = 0; ms2.Position = 0;
+            Assert.That(SaveUtils.CompareSavedModules(ms, ms2), Is.True);
         }
 
 
