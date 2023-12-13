@@ -20,9 +20,6 @@
     <Content Include="pickled_modules\module_load.pth">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="pickled_modules\module_save.bin">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
   </ItemGroup>
 
   <ItemGroup>
