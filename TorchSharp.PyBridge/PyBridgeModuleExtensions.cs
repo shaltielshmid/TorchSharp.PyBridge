@@ -302,6 +302,9 @@ namespace TorchSharp.PyBridge {
                 }// next bad key
             }
 
+            if (weightMap.Count == 0)
+                return module;
+
             // Load in each of the files with a progress bar
             foreach (var key in Tqdm.Wrap(weightMap.Values.ToHashSet())) {
                 string fullPath = Path.Combine(path, key);
