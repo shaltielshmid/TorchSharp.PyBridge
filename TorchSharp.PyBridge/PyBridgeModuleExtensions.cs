@@ -140,8 +140,6 @@ namespace TorchSharp.PyBridge {
             return module;
         }
 
-
-        //=====================================
         /// <summary>
         /// Load the parameters and buffers from a file saved using the safetensors format (https://github.com/huggingface/safetensors)
         /// </summary>
