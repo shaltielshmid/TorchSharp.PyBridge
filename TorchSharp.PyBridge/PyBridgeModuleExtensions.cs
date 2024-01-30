@@ -194,12 +194,10 @@ namespace TorchSharp.PyBridge {
                 // Make sure the keys match exactly
                 if (index.Count != curStateDict.Count || !index.Keys.All(curStateDict.ContainsKey))
                     throw new InvalidOperationException("The specified state dict is not identical to the target dictionary.");
-
-                // Reset the position
-                stream.Position = 0;
             }
 
-            // Load in the state dict, only the relevant keys
+            // Load in the state dict, only the relevant keys (make sure to reset the position)
+            stream.Position = 0;
             var loadedStateDict = Safetensors.LoadStateDict(stream, leaveOpen, curStateDict.Keys.ToList());
 
             // Load it in using the builtin function
