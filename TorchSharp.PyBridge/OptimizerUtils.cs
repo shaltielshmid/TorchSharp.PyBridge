@@ -64,11 +64,11 @@ namespace TorchSharp.PyBridge {
                 "etaminus" or "etaplus" => ((object[])referenceTable["etas"]!)[name == "etaminus" ? 0 : 1],
                 "min_step" or "max_step" => ((object[])referenceTable["step_sizes"]!)[name == "min_step" ? 0 : 1],
                 _ when type == typeof(torch.Tensor) => referenceTable[name!],
-                _ => GetValueFromMaybeTensor(referenceTable[name]!, type),
+                _ => GetValueFromMaybeTensor(referenceTable[name]!),
             };
         }
 
-        private static object? GetValueFromMaybeTensor(object obj, Type type) {
+        private static object? GetValueFromMaybeTensor(object obj) {
             if (obj is null || obj is not torch.Tensor)
                 return obj;
             // Stored as a tensor, so return it as a float and dispose the tensor
