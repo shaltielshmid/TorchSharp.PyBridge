@@ -21,10 +21,10 @@
     <PackageProjectUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge</PackageProjectUrl>
     <RepositoryUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <Version>1.1.0</Version>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
-    <FileVersion>1.1.0.0</FileVersion>
-    <PackageReleaseNotes>1.1.0: Added `load_py` and `save_py` extensions for optimizers.</PackageReleaseNotes>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
+    <FileVersion>1.2.0.0</FileVersion>
+    <PackageReleaseNotes>1.2.0: Added `load_safetensors` and `save_safetensors` extensions for modules.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

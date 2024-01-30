@@ -7,7 +7,7 @@ using static TorchSharp.torch.nn;
 namespace TorchSharp.PyBridge.Tests {
     public class TestLoadSaveOptimizers {
 
-        private void TestSaveOptim<T>(Func<IEnumerable<Parameter>, T> func, bool withLoss = false) where T : OptimizerHelper {
+        private static void TestSaveOptim<T>(Func<IEnumerable<Parameter>, T> func, bool withLoss = false) where T : OptimizerHelper {
             // Set the manual seed so that the randoms don't change between runs
             // and our tests will succeed
             torch.manual_seed(423812);
@@ -21,13 +21,12 @@ namespace TorchSharp.PyBridge.Tests {
 
             // Force the buffers that are only created after loss to be created.
             if (withLoss) {
-                using (var d = torch.NewDisposeScope()) {
-                    optim.zero_grad();
-                    var x = torch.randn(new[] { 64L, 10L });
-                    var y = torch.randn(new[] { 64L, 10L });
-                    torch.nn.functional.mse_loss(seq.call(x), y).backward();
-                    optim.step();
-                }
+                using var d = torch.NewDisposeScope();
+                optim.zero_grad();
+                var x = torch.randn(new[] { 64L, 10L });
+                var y = torch.randn(new[] { 64L, 10L });
+                torch.nn.functional.mse_loss(seq.call(x), y).backward();
+                optim.step();
             }
 
             // Save that optim to memory
@@ -177,13 +176,15 @@ namespace TorchSharp.PyBridge.Tests {
 
             foreach (var opts in sd.Options) {
                 var options = opts as Modules.SGD.Options;
-                Assert.That(options!.momentum, Is.EqualTo(0.1));
-                Assert.That(options!.LearningRate, Is.Not.EqualTo(learning_rate));
+                Assert.Multiple(() => {
+                    Assert.That(options!.momentum, Is.EqualTo(0.1));
+                    Assert.That(options!.LearningRate, Is.Not.EqualTo(learning_rate));
+                });
             }
 
             foreach (var st in sd.State) {
                 var state = st as Modules.SGD.State;
-                Assert.NotNull(state!.momentum_buffer);
+                Assert.That(state!.momentum_buffer, Is.Not.Null);
             }
         }
 
@@ -213,8 +214,10 @@ namespace TorchSharp.PyBridge.Tests {
 
             foreach (var st in sd.State) {
                 var state = st as Modules.ASGD.State;
-                Assert.That(state!.step, Is.EqualTo(1));
-                Assert.NotNull(state!.ax);
+                Assert.Multiple(() => {
+                    Assert.That(state!.step, Is.EqualTo(1));
+                    Assert.That(state!.ax, Is.Not.Null);
+                });
             }
         }
 

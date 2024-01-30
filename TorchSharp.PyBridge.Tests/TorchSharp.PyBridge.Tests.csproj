@@ -12,13 +12,25 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="pickled_modules\module_load.safetensors" />
     <None Remove="pyload_test.bin" />
     <None Remove="pysave_test.bin" />
+    <None Remove="test_safetensors_load.py" />
+    <None Remove="test_torch_load.py" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="pickled_modules\module_load.pth">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="pickled_modules\module_load.safetensors">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="test_safetensors_load.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="test_torch_load.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 
@@ -144,5 +156,9 @@
     <None Update="pickled_optimizers\SGD_withloss_save.bin">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="safetensor_modules\" />
   </ItemGroup>
 </Project>
