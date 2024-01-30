@@ -69,12 +69,12 @@ namespace TorchSharp.PyBridge {
                 offset += length;
             }// next key
 
-            string indexJson = JsonSerializer.Serialize(index);
+            byte[] indexJson = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(index));
 
             // Write out the JSON followed by the bytes of the tensors
             var br = new BinaryWriter(stream);
             br.Write((ulong)indexJson.Length);
-            br.Write(Encoding.UTF8.GetBytes(indexJson));
+            br.Write(indexJson);
             foreach (var kvp in orderedState)
                 br.Write(kvp.Value.bytes);
 
