@@ -10,7 +10,7 @@ TorchSharp.PyBridge is an extension library for [TorchSharp](https://github.com/
 
     > This only works for when the `state_dict` was saved and not the whole model, see example below.
 
-- **save_py Method**: SExtension method for modules and optimizers for easily saving TorchSharp models in a format that can be directly loaded in PyTorch (using `torch.load`), offering cross-platform model compatibility.
+- **save_py**: Extension method for modules and optimizers for easily saving TorchSharp models in a format that can be directly loaded in PyTorch (using `torch.load`), offering cross-platform model compatibility.
 
 - **load_safetensors**, **save_safetensors**: Extension methods for modules for easily saving and loading model weights using the [safetensors](https://github.com/huggingface/safetensors) format. 
 
