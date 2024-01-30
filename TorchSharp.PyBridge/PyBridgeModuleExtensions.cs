@@ -291,6 +291,16 @@ namespace TorchSharp.PyBridge {
                 if (weightMap.Count != curStateDict.Count || !weightMap.Keys.All(curStateDict.ContainsKey))
                     throw new InvalidOperationException("The specified state dict is not identical to the target dictionary.");
             }
+            // Otherwise, add to the skip list all the parameters that aren't in the state dict. Also remove them from the
+            // weight map, so that we won't even look at a file where we don't want to load any of the tensors.
+            else {
+                skip ??= new List<string>();
+                foreach (var badKey in weightMap.Keys.Except(curStateDict.Keys)) {
+                    skip.Add(badKey);
+                    weightMap.Remove(badKey);
+                    loadedParameters?.TryAdd(badKey, false);
+                }// next bad key
+            }
 
             // Load in each of the files with a progress bar
             foreach (var key in Tqdm.Wrap(weightMap.Values.ToHashSet())) {
