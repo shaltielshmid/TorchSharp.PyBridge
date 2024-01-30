@@ -1,4 +1,8 @@
 using System.Collections;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using TqdmSharp;
 using static TorchSharp.torch.nn;
 
 namespace TorchSharp.PyBridge {
@@ -209,6 +213,92 @@ namespace TorchSharp.PyBridge {
                     loadedParameters[key] = true;
                 foreach (string key in unexpectedKeys)
                     loadedParameters[key] = false;
+            }
+
+            return module;
+        }
+
+        /// <summary>
+        /// Load the parameters and buffers from a directory containing a potentially sharded checkpoint saved using the regular pytorch format or the safetensors format (https://github.com/huggingface/safetensors).
+        /// The filenames are expected to be the way HuggingFace's `save_pretrained` saves them, which are "pytorch_model.bin.index.json" and "model.safetensors.index.json".
+        /// Alternatively, one can specify the exact name of the main checkpoint. 
+        /// </summary>
+        /// <param name="path">A path to a directory containing the checkpoint.</param>
+        /// <param name="checkpointName">
+        /// Optional; The function defaults to look for a model.safetensors, then pytorch_model.bin, with checking for a sharded index equivalent of them. 
+        /// If specified then will use that file instead. If the checkpoint you are specifying is sharded, make sure to point to the index.json file
+        /// Note that this parameter should be a filename without a path.</param>
+        /// <param name="strict">
+        /// If true, will only load a module if it exactly corresponds to the current module's state.
+        /// If false, will load the parameters and buffers that it finds in the saved file,
+        /// leaving everything else alone.
+        /// </param>
+        /// <param name="skip">A list of keys not to consider when loading the dictionary.</param>
+        /// <param name="loadedParameters">A dictionary to populate with the list of parameters loaded and whether they were matched/skipped. Useful when loading in non-strict mode.</param>
+        /// <returns>The module, with parameters and buffers loaded.</returns>
+        public static Module load_checkpoint(this Module module, string path, string? checkpointName = null, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null) {
+            if (!Directory.Exists(path))
+                throw new DirectoryNotFoundException();
+            
+            // Figure out the name of the checkpoint. If unspecified, try the hierarchy used by huggingface
+            if (checkpointName is null) {
+                foreach (var potential in new[] { "model.safetensors", "pytorch_model.bin" }) {
+                    foreach (var suffix in new[] { "", ".index.json" }) {
+                        string name = Path.Combine(path, potential + suffix);
+                        if (File.Exists(name)) {
+                            checkpointName = potential + suffix;
+                            break;
+                        }
+                    }// next potential suffix
+                }// next potential checkpoint
+
+                if (checkpointName is null)
+                    throw new ArgumentException("Couldn't find checkpoint in given directory. Make sure it is named correctly or specify the name of the checkpoint explicitly.");
+            }
+            else {
+                // Make sure that checkpoint name isn't a full path, but just the name of the file
+                if (checkpointName.Contains('/') || checkpointName.Contains('\\'))
+                    throw new ArgumentException("The checkpoint name should be just the name of a file, not a path", nameof(checkpointName));
+            }
+
+            string mainFilename = Path.Combine(path, checkpointName!);
+            // If the file ends with .safetensors - load it in using that method
+            if (mainFilename.EndsWith(".safetensors")) 
+                return module.load_safetensors(mainFilename);
+            // If the file doesn't end with .json - try loading it in using the regular pytorch method
+            if (!mainFilename.EndsWith(".json"))
+                return module.load_py(mainFilename);
+
+            // We have an index json for a sharded file.
+            string indexJson = File.ReadAllText(mainFilename);
+            var fullIndex = JsonSerializer.Deserialize<Dictionary<string, JsonNode>>(indexJson) ?? throw new NotImplementedException("Invalid JSON encountered when loading in sharded index");
+            
+            // Extract just the weight map
+            if (!fullIndex.ContainsKey("weight_map"))
+                throw new NotImplementedException("Invalid JSON encountered when loading in sharded index");
+
+            var weightMap = fullIndex["weight_map"].Deserialize<Dictionary<string, string>>() ?? throw new NotImplementedException("Invalid JSON encountered when loading in sharded index");
+            if (skip is not null) weightMap.RemoveKeys(skip);
+
+            // Retrieve the current state dict of the module, so that we can make sure to only load the relevant
+            // tensors from the file and to check for strictness
+            var curStateDict = module.state_dict();
+            if (skip is not null) curStateDict.RemoveKeys(skip);
+            
+            // If we requested strict - confirm the state dicts match exactly
+            if (strict) {
+                // Make sure the keys match exactly
+                if (weightMap.Count != curStateDict.Count || !weightMap.Keys.All(curStateDict.ContainsKey))
+                    throw new InvalidOperationException("The specified state dict is not identical to the target dictionary.");
+            }
+
+            // Load in each of the files with a progress bar
+            foreach (var key in Tqdm.Wrap(weightMap.Values.ToHashSet())) {
+                string fullPath = Path.Combine(path, key);
+                if (fullPath.EndsWith(".safetensors"))
+                    module.load_safetensors(fullPath, false, skip: skip, loadedParameters: loadedParameters); 
+                else 
+                    module.load_py(fullPath, false, skip: skip, loadedParameters: loadedParameters);
             }
 
             return module;
