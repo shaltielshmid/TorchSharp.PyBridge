@@ -14,6 +14,8 @@ TorchSharp.PyBridge is an extension library for [TorchSharp](https://github.com/
 
 - `module.load_safetensors(...)`, `module.save_safetensors(...)`: Extension methods for modules for easily saving and loading model weights using the [safetensors](https://github.com/huggingface/safetensors) format. 
 
+- `module.load_checkpoint(...)`: Extension method for loading in a checkpoint (both safetensors and regular pytorch, including sharded models) from a directory saved using HuggingFace's `PreTrainedModel.save_pretrained()` method.  
+
 ## Getting Started
 
 ### Installation
