@@ -95,8 +95,8 @@ namespace TorchSharp.PyBridge {
                 // Start by serializing the object to a file in the archive
                 var entry = _archive.CreateEntry($"model/data/{_tensorCount}");
                 using (var stream = entry.Open())
-                    stream.Write(tensor.bytes.ToArray(), 0, tensor.bytes.Length);
-
+                    tensor.WriteBytesToStream(stream);
+                    
                 // Collect the items for our persistentId, as above.
                 newpid = new object[] {
                     "storage",

@@ -11,7 +11,7 @@
 
   <ItemGroup>
     <PackageReference Include="Razorvine.Pickle" Version="1.5.0" />
-    <PackageReference Include="TorchSharp" Version="[0.101.3,)" PrivateAssets="All" />
+    <PackageReference Include="TorchSharp" Version="[0.102.0,)" PrivateAssets="All" />
     <PackageReference Include="TqdmSharp" Version="1.3.3" />
   </ItemGroup>
   
@@ -22,10 +22,14 @@
     <PackageProjectUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge</PackageProjectUrl>
     <RepositoryUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <Version>1.2.0</Version>
-    <AssemblyVersion>1.2.0.0</AssemblyVersion>
-    <FileVersion>1.2.0.0</FileVersion>
-    <PackageReleaseNotes>1.2.0: Added `load_safetensors` and `save_safetensors` extensions for modules.</PackageReleaseNotes>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <FileVersion>1.3.0.0</FileVersion>
+    <PackageReleaseNotes>
+        1.3.0: 
+        - Added support for loading tensors that are greater than 2GB (following the update in TorchSharp 0.102.0)
+        - Added support for loading and saving safetensors when model isn't on CPU. 
+    </PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

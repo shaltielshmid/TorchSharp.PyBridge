@@ -81,30 +81,17 @@ namespace TorchSharp.PyBridge {
                 string archiveKey = (string)opid[2];
                 // Tuple Item3: location (cpu/gpu), but we always load onto CPU. 
                 // Tuple Item4: numElems (the number of elements in the tensor)
-                int numElem = (int)opid[4];
-
+                
                 // Convert the storage name into the relevant scalar type (e.g., LongStorage => torch.long)
                 // and then check how many bytes each element is
                 var dtype = GetScalarTypeFromStorageName(storageType);
-                var elemSize = (int)torch.empty(0, dtype).ElementSize;
-
-                int totalSize = numElem * elemSize;
-
-                //
-                // TODO: Fix this so that you can read large tensors. Right now, they are limited to 2GB
-                //
-                if (totalSize > int.MaxValue)
-                    throw new NotImplementedException("Loading tensors larger than 2GB");
-
+                
                 // Retrieve the entry from the archive
                 var entry = _archive.Entries.First(f => f.FullName.EndsWith($"data/{archiveKey}"));
-                // Read in the relevant bytes from the entry
-                var bytesBuffer = new byte[totalSize];
-                entry!.Open().Read(bytesBuffer, 0, totalSize);
-
+                
                 // Send this back, so our TensorObjectConstructor can create our torch.tensor from the object.
                 return new TensorObject() {
-                    data = bytesBuffer,
+                    data = entry!.Open(),
                     dtype = dtype
                 };
             }
@@ -176,7 +163,8 @@ namespace TorchSharp.PyBridge {
                 torch.Tensor t = shape.Length == 0 ? torch.zeros(1, arg0.dtype)
                                                    : torch.WrappedTensorDisposeScope(() =>
                                                             torch.zeros(shape, arg0.dtype).as_strided(shape, stride, storageOffset));
-                t.bytes = arg0.data;
+                t.ReadBytesFromStream(arg0.data);
+                arg0.data.Close();
                 return t;
             }
         }
@@ -201,7 +189,7 @@ namespace TorchSharp.PyBridge {
         /// Therefore, this class is a simple wrapper for the bytes + dtype of the storage.
         /// </summary>
         class TensorObject {
-            public byte[]? data { get; set; }
+            public Stream data { get; set; }
             public torch.ScalarType dtype { get; set; }
         }
     }

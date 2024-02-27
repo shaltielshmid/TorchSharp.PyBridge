@@ -121,6 +121,7 @@ namespace TorchSharp.PyBridge {
         public static Module load_py(this Module module, System.IO.Stream stream, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null, bool leaveOpen = false) {
             // Create a dispose score so that we don't keep anyof the loaded tensors past this function
             using var d = torch.NewDisposeScope();
+            using var d2 = torch.no_grad(); // To circumvent a bug introduced in 0.102.0
 
             // Unpickle the state dictionary into memory
             var stateHashtable = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen);
@@ -182,6 +183,7 @@ namespace TorchSharp.PyBridge {
         public static Module load_safetensors(this Module module, System.IO.Stream stream, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null, bool leaveOpen = false) {
             // Create a dispose score so that we don't keep anyof the loaded tensors past this function
             using var d = torch.NewDisposeScope();
+            using var d2 = torch.no_grad(); // To circumvent a bug introduced in 0.102.0
 
             // Retrieve the current state dict of the module, so that we can make sure to only load the relevant
             // tensors from the file.

@@ -29,14 +29,14 @@ namespace TorchSharp.PyBridge {
 
                 var tensor = torch.empty(kvp.Value.Shape, dtype: ConvertToTorchDType(kvp.Value.DataType));
 
-                // Make sure the length isn't > int.MaxValue, since .NET has the 2GB limit
+                // Make sure the length matches the number of bytes to load
                 long length = kvp.Value.Offsets[1] - kvp.Value.Offsets[0];
-                if (length > int.MaxValue)
-                    throw new NotImplementedException("Loading tensors larger than 2GB");
+                if (length != tensor.ElementSize * tensor.NumberOfElements)
+                    throw new NotImplementedException($"Error when loading tensor {kvp.Key} - mismatched # of elements");
 
                 stream.Position = offset + kvp.Value.Offsets[0];
-                tensor.bytes = stream.ReadBytes((int)length);
-
+                tensor.ReadBytesFromStream(stream);
+                
                 ret.Add(kvp.Key, tensor);
             }
 
@@ -75,9 +75,14 @@ namespace TorchSharp.PyBridge {
             var br = new BinaryWriter(stream);
             br.Write((ulong)indexJson.Length);
             br.Write(indexJson);
-            foreach (var kvp in orderedState)
-                br.Write(kvp.Value.bytes);
-
+            foreach (var kvp in orderedState) {
+                if (kvp.Value.device.type == DeviceType.CPU)
+                    kvp.Value.WriteBytesToStream(stream);
+                else {
+                    using var tmp = kvp.Value.cpu();
+                    tmp.WriteBytesToStream(stream);
+                }
+            }
             if (!leaveOpen)
                 br.Close();
         }
