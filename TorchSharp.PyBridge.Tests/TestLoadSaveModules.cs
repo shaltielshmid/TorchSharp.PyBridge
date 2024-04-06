@@ -107,6 +107,29 @@ namespace TorchSharp.PyBridge.Tests {
 
 
         }
+
+        [Test]
+        public void TestLoadBatchNorm2D_Bug13() {
+            var model = BatchNorm2d(5);
+            // Run a few inputs through, to increment the `num_batches_tracked` field
+            for (int i = 0; i < 5; i++) {
+                using var d = torch.NewDisposeScope();
+                model.forward(torch.rand(new[] { 5L, 5L, 5L, 5L }));
+            }
+
+            Assert.That(model.num_batches_tracked.item<long>() == 5);
+
+            // Save to a file, and try reloading
+            using var stream = new MemoryStream();
+            model.save_py(stream, leaveOpen: true);
+            stream.Position = 0;
+
+            // Create the new model and load it
+            var model2 = BatchNorm2d(5);
+            model2.load_py(stream);
+
+            Assert.That(model2.num_batches_tracked.item<long>() == 5);
+        }
     }
 
     

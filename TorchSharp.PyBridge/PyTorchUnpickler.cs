@@ -160,9 +160,9 @@ namespace TorchSharp.PyBridge {
 
                 // If there is no shape, then the shape is just 1
                 // Since we have two operations here - we want to make sure to dispose the temporary.
-                torch.Tensor t = shape.Length == 0 ? torch.zeros(1, arg0.dtype)
-                                                   : torch.WrappedTensorDisposeScope(() =>
-                                                            torch.zeros(shape, arg0.dtype).as_strided(shape, stride, storageOffset));
+                torch.Tensor t = torch.WrappedTensorDisposeScope(() => 
+                                    torch.empty(shape, arg0.dtype).as_strided(shape, stride, storageOffset));
+
                 t.ReadBytesFromStream(arg0.data);
                 arg0.data.Close();
                 return t;
