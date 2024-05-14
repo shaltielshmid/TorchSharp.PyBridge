@@ -4,7 +4,7 @@ using Razorvine.Pickle;
 using Razorvine.Pickle.Objects;
 
 namespace TorchSharp.PyBridge {
-    static class PyTorchUnpickler {
+    public static class PyTorchUnpickler {
         static PyTorchUnpickler() {
             Unpickler.registerConstructor("torch._utils", "_rebuild_tensor", new TensorObjectConstructor());
             Unpickler.registerConstructor("torch._utils", "_rebuild_tensor_v2", new TensorObjectConstructor());

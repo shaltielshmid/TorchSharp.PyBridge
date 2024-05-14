@@ -5,7 +5,7 @@ using Razorvine.Pickle;
 using TorchSharp.Modules;
 
 namespace TorchSharp.PyBridge {
-    static class PyTorchPickler {
+    public static class PyTorchPickler {
         static PyTorchPickler() {
             Pickler.registerCustomPickler(typeof(Storage), new StoragePickler());
             Pickler.registerCustomDeconstructor(typeof(EmptyOrderedDict), new EmptyOrderedDictDeconstructor());

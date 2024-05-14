@@ -1,5 +1,4 @@
-﻿using ICSharpCode.SharpZipLib.Zip.Compression.Streams;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,7 +7,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace TorchSharp.PyBridge {
-    static class Safetensors {
+    public static class Safetensors {
 
         public static Dictionary<string, torch.Tensor> LoadStateDict(string path, List<string>? keysToKeep = null) {
             using var stream = File.OpenRead(path);
@@ -49,7 +48,7 @@ namespace TorchSharp.PyBridge {
 
         public static void SaveStateDict(string path, Dictionary<string, torch.Tensor> stateDict) {
             using var stream = File.OpenWrite(path);
-            SaveStateDict(path, stateDict);
+            SaveStateDict(stream, stateDict);
         }
 
         public static void SaveStateDict(Stream stream, Dictionary<string, torch.Tensor> stateDict, bool leaveOpen = false) {
@@ -88,12 +87,12 @@ namespace TorchSharp.PyBridge {
         }
 
 
-        public static Dictionary<string, SafetensorsEntry> LoadIndex(string path) {
+        internal static Dictionary<string, SafetensorsEntry> LoadIndex(string path) {
             using var stream = File.OpenRead(path);
             return LoadIndex(stream);
         }
 
-        public static Dictionary<string, SafetensorsEntry> LoadIndex(Stream stream) {
+        internal static Dictionary<string, SafetensorsEntry> LoadIndex(Stream stream) {
             // First 8 bytes represent the length of the JSON in UTF8.
             ulong length = BitConverter.ToUInt64(stream.ReadBytes(8));
             if (length > int.MaxValue)
@@ -138,12 +137,12 @@ namespace TorchSharp.PyBridge {
     }
     internal class SafetensorsEntry {
         [JsonPropertyName("dtype")]
-        public string DataType { get; set; }
+        public string DataType { get; init; }
 
         [JsonPropertyName("shape")]
-        public long[] Shape { get; set; }
+        public long[] Shape { get; init; }
 
         [JsonPropertyName("data_offsets")]
-        public long[] Offsets { get; set; }
+        public long[] Offsets { get; init; }
     }
 }
