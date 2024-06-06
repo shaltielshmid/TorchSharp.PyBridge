@@ -237,8 +237,9 @@ namespace TorchSharp.PyBridge {
         /// </param>
         /// <param name="skip">A list of keys not to consider when loading the dictionary.</param>
         /// <param name="loadedParameters">A dictionary to populate with the list of parameters loaded and whether they were matched/skipped. Useful when loading in non-strict mode.</param>
+        /// <param name="useTqdm">Display the tqdm progress bar when loading in sharded checkpoint.</param>
         /// <returns>The module, with parameters and buffers loaded.</returns>
-        public static Module load_checkpoint(this Module module, string path, string? checkpointName = null, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null) {
+        public static Module load_checkpoint(this Module module, string path, string? checkpointName = null, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null, bool useTqdm = true) {
             if (!Directory.Exists(path))
                 throw new DirectoryNotFoundException();
             
@@ -252,6 +253,9 @@ namespace TorchSharp.PyBridge {
                             break;
                         }
                     }// next potential suffix
+
+                    if (checkpointName is not null)
+                        break;
                 }// next potential checkpoint
 
                 if (checkpointName is null)
@@ -307,8 +311,10 @@ namespace TorchSharp.PyBridge {
             if (weightMap.Count == 0)
                 return module;
 
-            // Load in each of the files with a progress bar
-            foreach (var key in Tqdm.Wrap(weightMap.Values.ToHashSet())) {
+            // Load in each of the files with an optional progress bar progress bar 
+            var weightMapFiles = weightMap.Values.ToHashSet();
+            var iterWeightMapFiles = useTqdm ? Tqdm.Wrap(weightMapFiles) : weightMapFiles;
+            foreach (var key in iterWeightMapFiles) {
                 string fullPath = Path.Combine(path, key);
                 if (fullPath.EndsWith(".safetensors"))
                     module.load_safetensors(fullPath, false, skip: skip, loadedParameters: loadedParameters); 

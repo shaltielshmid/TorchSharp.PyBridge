@@ -21,10 +21,12 @@
     <PackageProjectUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge</PackageProjectUrl>
     <RepositoryUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <Version>1.4.0</Version>
-    <AssemblyVersion>1.4.0.0</AssemblyVersion>
-    <FileVersion>1.4.0.0</FileVersion>
+    <Version>1.4.1</Version>
+    <AssemblyVersion>1.4.1.0</AssemblyVersion>
+    <FileVersion>1.4.1.0</FileVersion>
     <PackageReleaseNotes>
+      1.4.1:
+      - Fixed #17: How to disable tqdm output when loading sharded safetensors
       1.4.0:
       - Exposed `Safetensors`, `PytorchPickler` and `PytorchUnpickler` to allow for loading/saving python tensors outside of a model.
       - Fixed #16: SaveStateDict calls itself recursively and fails on locked file
