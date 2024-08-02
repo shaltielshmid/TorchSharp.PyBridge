@@ -126,13 +126,13 @@ namespace TorchSharp.PyBridge {
             var unpickled = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen: true, skipTensorRead: true);
 
             // Convert the hashtable to a dictionary of string->tensor
-            Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickledConstructorArgs = new();
+            Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickledConstructors = new();
 
             foreach (string key in unpickled.Keys) {
-                unpickledConstructorArgs.Add(key, (PyTorchUnpickler.TensorConstructorArgs)unpickled[key]!);
+                unpickledConstructors.Add(key, (PyTorchUnpickler.TensorConstructorArgs)unpickled[key]!);
             }
 
-            var (_, unexpectedKeys) = load_state_dict(module, unpickledConstructorArgs, strict, skip);
+            var (_, unexpectedKeys) = load_state_dict(module, unpickledConstructors, strict, skip);
 
             // Close stream now that tensor streams have been read.
             stream.Close ();
@@ -142,7 +142,7 @@ namespace TorchSharp.PyBridge {
             }
 
             // Fill in the loadedParameters dictionary
-            foreach (var key in unpickledConstructorArgs.Keys) {
+            foreach (var key in unpickledConstructors.Keys) {
                 loadedParameters[key] = true;
             }
 
@@ -159,7 +159,7 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         static (IList<string> missing_keys, IList<string> unexpected_keyes) load_state_dict(
             Module module,
-            Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> source,
+            Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickled,
             bool strict = true,
             IList<string> skip = null
         )
@@ -168,15 +168,15 @@ namespace TorchSharp.PyBridge {
             var unexpected_keyes = new List<string>();
             skip ??= Array.Empty<string>();
 
-            var state_dict = module.state_dict();
+            var state = module.state_dict();
 
-            foreach (string key in source.Keys) {
-                if (!skip.Contains(key) && !state_dict.ContainsKey(key))
+            foreach (string key in unpickled.Keys) {
+                if (!skip.Contains(key) && !state.ContainsKey(key))
                     unexpected_keyes.Add(key);
             }
 
-            foreach (string key in state_dict.Keys) {
-                if (!skip.Contains(key) && !source.ContainsKey(key)) {
+            foreach (string key in state.Keys) {
+                if (!skip.Contains(key) && !unpickled.ContainsKey(key)) {
                     missing_keys.Add(key);
                 }
             }
@@ -185,31 +185,30 @@ namespace TorchSharp.PyBridge {
                 throw new InvalidOperationException("The loaded state_dict is not identical to the target dictionary.");
             }
 
-            foreach (string key in source.Keys) {
-                if (!state_dict.ContainsKey(key)) {
-                    continue;
-                }
+            var inputStreams = unpickled
+                .Select(_ => (key: _.Key, constructor: _.Value))
+                .Where(_ => state.ContainsKey(_.key))
+                // Avoid random stream seeks by reading archive files in the order that they are stored.
+                .OrderBy(_ => _.constructor.archiveIndex)
+                .ToArray();
 
-                var _source = source[key];
+            foreach (var (key, source) in inputStreams) {
+                var target = state[key];
+                target.with_requires_grad(source.requiresGrad);
 
-                using var stream = _source.data;
-
-                var target = state_dict[key];
-                target.with_requires_grad(_source.requiresGrad);
-
-                if (_source.dtype == state_dict[key].dtype) {
+                if (source.dtype == state[key].dtype) {
+                    using var stream = source.data;
                     // Read directly into target tensor.
                     target
-                        .as_strided(_source.shape, _source.stride, _source.storageOffset)
+                        .as_strided(source.shape, source.stride, source.storageOffset)
                         .ReadBytesFromStream(stream);
-                    target.with_requires_grad(_source.requiresGrad);
-                    stream.Close();
+                    target.with_requires_grad(source.requiresGrad);
                 }
                 else {
                     // Type conversion with intermediate tensor required.
                     // This will load onto cpu first before copying to target.
-                    using torch.Tensor temp = _source.readTensorFromStream();
-                    state_dict[key].copy_(temp);
+                    using torch.Tensor temp = source.readTensorFromStream();
+                    state[key].copy_(temp);
                 }
             }
 
