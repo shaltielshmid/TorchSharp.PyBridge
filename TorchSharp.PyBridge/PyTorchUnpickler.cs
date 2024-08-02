@@ -45,21 +45,9 @@ namespace TorchSharp.PyBridge {
 
             // Create our unpickler with the archive, so it can pull all the relevant files
             // using the persistentId
-            var unpickler = new CustomUnpickler(archive);
+            var unpickler = new CustomUnpickler(archive, skipTensorRead);
             // The unpickle returns a hash mapping ["key"] to the tensor
-            var ret = (Hashtable)unpickler.load(pklEntry.Open());
-
-            if (skipTensorRead) {
-                return ret;
-            }
-
-            foreach (var key in ret.Keys) {
-                if (ret[key] is TensorConstructorArgs constructorArgs) {
-                    ret[key] = constructorArgs.readTensorFromStream();
-                }
-            }
-
-            return ret;
+            return (Hashtable)unpickler.load(pklEntry.Open());
         }
 
         /// <summary>
@@ -73,8 +61,11 @@ namespace TorchSharp.PyBridge {
         class CustomUnpickler : Unpickler {
             readonly ZipArchive _archive;
 
-            public CustomUnpickler(ZipArchive archive) {
+            bool _skipTensorRead;
+
+            public CustomUnpickler(ZipArchive archive, bool skipTensorRead) {
                 _archive = archive;
+                _skipTensorRead = skipTensorRead;
             }
 
             protected override object persistentLoad(object pid) {
@@ -104,7 +95,8 @@ namespace TorchSharp.PyBridge {
                 // Send this back, so our TensorObjectConstructor can create our torch.tensor from the object.
                 return new TensorStream() {
                     data = entry!.Open(),
-                    dtype = dtype
+                    dtype = dtype,
+                    skipTensorRead = _skipTensorRead,
                 };
             }
 
@@ -157,27 +149,26 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         class TensorObjectConstructor : IObjectConstructor {
             public object construct(object[] args) {
-                // Arg 0: (byte[] data, ScalarType dtype) // returned from our custom pickler
-                var tensorObject = (TensorStream)args[0];
-                // Arg 1: storage_offset
-                int storageOffset = (int)args[1];
-                // Arg 2: tensor_shape
-                var shape = ((object[])args[2]).Select(i => (long)(int)i).ToArray();
-                // Arg 3: stride 
-                var stride = ((object[])args[3]).Select(i => (long)(int)i).ToArray();
-                // Arg 4: requires_grad
-                var requiresGrad = (bool)args[4];
+                var constructor = new TensorConstructorArgs {
+                    // Arg 0: (byte[] data, ScalarType dtype) // returned from our custom pickler
+                    data = ((TensorStream)args[0]).data,
+                    dtype = ((TensorStream)args[0]).dtype,
+                    // Arg 1: storage_offset
+                    storageOffset = (int)args[1],
+                    // Arg 2: tensor_shape
+                    shape = ((object[])args[2]).Select(i => (long)(int)i).ToArray(),
+                    // Arg 3: stride 
+                    stride = ((object[])args[3]).Select(i => (long)(int)i).ToArray(),
+                    // Arg 4: requires_grad
+                    requiresGrad = (bool)args[4],
+                };
+
                 // Arg 5: backward_hooks, we don't support adding them in and it's not recommended
                 // in PyTorch to serialize them.
 
-                return new TensorConstructorArgs {
-                    data = tensorObject.data,
-                    dtype = tensorObject.dtype,
-                    storageOffset = storageOffset,
-                    shape = shape,
-                    stride = stride,
-                    requiresGrad = requiresGrad,
-                };
+                return ((TensorStream)args[0]).skipTensorRead
+                    ? constructor
+                    : constructor.readTensorFromStream();
             }
         }
 
@@ -227,6 +218,7 @@ namespace TorchSharp.PyBridge {
         class TensorStream {
             public Stream data { get; set; }
             public torch.ScalarType dtype { get; set; }
+            public bool skipTensorRead { get; set; }
         }
     }
 }
