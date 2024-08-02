@@ -123,7 +123,7 @@ namespace TorchSharp.PyBridge {
 
             // Unpickle the state dictionary into memory.
             // Keep stream open because tensors will not get deserialized yet.
-            var unpickled = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen: true);
+            var unpickled = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen: true, skipTensorRead: true);
 
             // Convert the hashtable to a dictionary of string->tensor
             Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickledConstructorArgs = new();
@@ -208,7 +208,7 @@ namespace TorchSharp.PyBridge {
                 else {
                     // Type conversion with intermediate tensor required.
                     // This will load onto cpu first before copying to target.
-                    using torch.Tensor temp = _source.read();
+                    using torch.Tensor temp = _source.readTensorFromStream();
                     state_dict[key].copy_(temp);
                 }
             }

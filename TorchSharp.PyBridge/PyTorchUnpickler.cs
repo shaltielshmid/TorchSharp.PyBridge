@@ -27,7 +27,7 @@ namespace TorchSharp.PyBridge {
         /// <param name="stream">Stream of the file to load</param>
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
         /// <returns>The loaded state_dict</returns>
-        public static Hashtable UnpickleStateDict(Stream stream, bool leaveOpen = false) {
+        public static Hashtable UnpickleStateDict(Stream stream, bool leaveOpen = false, bool skipTensorRead = false) {
             // Make sure it's a zip file
             // If it's not, then it was saved using legacy torch save and we don't support it (yet, at least)
             // Check the local file signature
@@ -47,7 +47,19 @@ namespace TorchSharp.PyBridge {
             // using the persistentId
             var unpickler = new CustomUnpickler(archive);
             // The unpickle returns a hash mapping ["key"] to the tensor
-            return (Hashtable)unpickler.load(pklEntry.Open());
+            var ret = (Hashtable)unpickler.load(pklEntry.Open());
+
+            if (skipTensorRead) {
+                return ret;
+            }
+
+            foreach (var key in ret.Keys) {
+                if (ret[key] is TensorConstructorArgs constructorArgs) {
+                    ret[key] = constructorArgs.readTensorFromStream();
+                }
+            }
+
+            return ret;
         }
 
         /// <summary>
@@ -196,7 +208,7 @@ namespace TorchSharp.PyBridge {
             
             public bool requiresGrad { get; init; }
 
-            public torch.Tensor read() {
+            public torch.Tensor readTensorFromStream() {
                 var temp = torch
                     .empty(shape, dtype, device: torch.CPU)
                     .as_strided(shape, stride, storageOffset);
