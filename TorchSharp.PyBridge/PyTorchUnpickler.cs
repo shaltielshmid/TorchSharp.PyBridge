@@ -90,7 +90,7 @@ namespace TorchSharp.PyBridge {
                 var entry = _archive.Entries.First(f => f.FullName.EndsWith($"data/{archiveKey}"));
                 
                 // Send this back, so our TensorObjectConstructor can create our torch.tensor from the object.
-                return new TensorObject() {
+                return new TensorStream() {
                     data = entry!.Open(),
                     dtype = dtype
                 };
@@ -146,7 +146,7 @@ namespace TorchSharp.PyBridge {
         class TensorObjectConstructor : IObjectConstructor {
             public object construct(object[] args) {
                 // Arg 0: (byte[] data, ScalarType dtype) // returned from our custom pickler
-                var arg0 = (TensorObject)args[0];
+                var tensorObject = (TensorStream)args[0];
                 // Arg 1: storage_offset
                 int storageOffset = (int)args[1];
                 // Arg 2: tensor_shape
@@ -158,14 +158,14 @@ namespace TorchSharp.PyBridge {
                 // Arg 5: backward_hooks, we don't support adding them in and it's not recommended
                 // in PyTorch to serialize them.
 
-                // If there is no shape, then the shape is just 1
-                // Since we have two operations here - we want to make sure to dispose the temporary.
-                torch.Tensor t = torch.WrappedTensorDisposeScope(() => 
-                                    torch.empty(shape, arg0.dtype).as_strided(shape, stride, storageOffset));
-
-                t.ReadBytesFromStream(arg0.data);
-                arg0.data.Close();
-                return t;
+                return new TensorConstructorArgs {
+                    data = tensorObject.data,
+                    dtype = tensorObject.dtype,
+                    storageOffset = storageOffset,
+                    shape = shape,
+                    stride = stride,
+                    requiresGrad = requiresGrad,
+                };
             }
         }
 
@@ -182,13 +182,37 @@ namespace TorchSharp.PyBridge {
             }
         }
 
+        internal record TensorConstructorArgs
+        {
+            public Stream data { get; init; }
+
+            public torch.ScalarType dtype { get; init; }
+
+            public int storageOffset { get; init; }
+
+            public long[] shape { get; init; }
+
+            public long[] stride { get; init; }
+            
+            public bool requiresGrad { get; init; }
+
+            public torch.Tensor read() {
+                var temp = torch
+                    .empty(shape, dtype, device: torch.CPU)
+                    .as_strided(shape, stride, storageOffset);
+                temp.ReadBytesFromStream(data);
+                data.Close();
+
+                return temp;
+            }
+        }
 
         /// <summary>
         /// When the unpickler first loads in the tensor, it only has access to metadata about the storage
         /// of the tensor, but not the info about stride/shape etc. That part is done in the TensorReconstructor.
         /// Therefore, this class is a simple wrapper for the bytes + dtype of the storage.
         /// </summary>
-        class TensorObject {
+        class TensorStream {
             public Stream data { get; set; }
             public torch.ScalarType dtype { get; set; }
         }
