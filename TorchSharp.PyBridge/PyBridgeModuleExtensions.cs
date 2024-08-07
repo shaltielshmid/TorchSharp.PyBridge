@@ -134,8 +134,10 @@ namespace TorchSharp.PyBridge {
 
             var (_, unexpectedKeys) = load_state_dict(module, unpickledConstructors, strict, skip);
 
-            // Close stream now that tensor streams have been read.
-            stream.Close ();
+            if (!leaveOpen) {
+                // Close stream now that tensor streams have been read.
+                stream.Close ();
+            }
 
             if (loadedParameters is null) {
                 return module;
