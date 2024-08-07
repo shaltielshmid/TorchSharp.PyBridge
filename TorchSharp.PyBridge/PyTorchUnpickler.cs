@@ -26,8 +26,12 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         /// <param name="stream">Stream of the file to load</param>
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
+        /// <param name="skipTensorRead">true to return descriptor objects and streams instead of tensors so that they can be loaded later</param>
         /// <returns>The loaded state_dict</returns>
         public static Hashtable UnpickleStateDict(Stream stream, bool leaveOpen = false, bool skipTensorRead = false) {
+            if (skipTensorRead && !leaveOpen)
+                throw new ArgumentException("leaveOpen must be true when skipTensorRead is true");
+
             // Make sure it's a zip file
             // If it's not, then it was saved using legacy torch save and we don't support it (yet, at least)
             // Check the local file signature
