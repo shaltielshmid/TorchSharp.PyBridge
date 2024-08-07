@@ -195,29 +195,32 @@ namespace TorchSharp.PyBridge {
             }
         }
 
-        internal record TensorConstructorArgs
-        {
+        /// <summary>
+        /// This class is an intermediate record which contains all the information to construct the tensor from a stream
+        /// provided in the class (usually this stream is set to a DeflateStream from a ZipArchiveEntry). This can be used
+        /// to read the tensor directly, or to store a pointer to a tensor to be read at a later time, and avoid excessive memory use. 
+        /// </summary>
+        internal class TensorConstructorArgs {
             public int ArchiveIndex { get; init; }
-
             public Stream Data { get; init; }
-
             public torch.ScalarType DType { get; init; }
-
             public int StorageOffset { get; init; }
-
             public long[] Shape { get; init; }
-
             public long[] Stride { get; init; }
-
             public bool RequiresGrad { get; init; }
 
+            private bool _alreadyRead = false;
             public torch.Tensor ReadTensorFromStream() {
+                if (_alreadyRead)
+                    throw new InvalidOperationException("The tensor has already been constructed, cannot read tensor twice.");
+
                 var temp = torch
                     .empty(Shape, DType, device: torch.CPU)
                     .as_strided(Shape, Stride, StorageOffset);
                 temp.ReadBytesFromStream(Data);
                 Data.Close();
 
+                _alreadyRead = true;
                 return temp;
             }
         }

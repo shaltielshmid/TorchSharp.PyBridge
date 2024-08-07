@@ -163,7 +163,7 @@ namespace TorchSharp.PyBridge {
             Module module,
             Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickled,
             bool strict = true,
-            IList<string> skip = null
+            IList<string>? skip = null
         ) {
             var missingKeys = new List<string>();
             var unexpectedKeys = new List<string>();

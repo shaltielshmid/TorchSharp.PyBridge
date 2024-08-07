@@ -160,7 +160,7 @@ namespace TorchSharp.PyBridge.Tests {
                 model.forward(torch.rand(new[] { 5L, 5L, 5L, 5L }));
             }
 
-            Assert.That(model.num_batches_tracked.item<long>() == 5);
+            Assert.That(model.num_batches_tracked!.item<long>(), Is.EqualTo(5));
 
             // Save to a file, and try reloading
             using var stream = new MemoryStream();
@@ -171,7 +171,7 @@ namespace TorchSharp.PyBridge.Tests {
             var model2 = BatchNorm2d(5);
             model2.load_py(stream);
 
-            Assert.That(model2.num_batches_tracked.item<long>() == 5);
+            Assert.That(model2.num_batches_tracked!.item<long>(), Is.EqualTo(5));
         }
     }
 
