@@ -61,7 +61,7 @@ namespace TorchSharp.PyBridge {
         class CustomUnpickler : Unpickler {
             readonly ZipArchive _archive;
 
-            bool _skipTensorRead;
+            readonly bool _skipTensorRead;
 
             public CustomUnpickler(ZipArchive archive, bool skipTensorRead) {
                 _archive = archive;
@@ -95,11 +95,11 @@ namespace TorchSharp.PyBridge {
                     .First(e => e.archiveEntry.FullName.EndsWith($"data/{archiveKey}"));
 
                 // Send this back, so our TensorObjectConstructor can create our torch.tensor from the object.
-                return new TensorStream() {
-                    archiveIndex = entry!.index,
-                    archiveEntry = entry!.archiveEntry,
-                    dtype = dtype,
-                    skipTensorRead = _skipTensorRead,
+                return new TensorStream {
+                    ArchiveIndex = entry!.index,
+                    ArchiveEntry = entry!.archiveEntry,
+                    DType = dtype,
+                    SkipTensorRead = _skipTensorRead,
                 };
             }
 
@@ -156,25 +156,25 @@ namespace TorchSharp.PyBridge {
                 var tensorStream = (TensorStream)args[0];
 
                 var constructor = new TensorConstructorArgs {
-                    archiveIndex = tensorStream.archiveIndex,
-                    data = tensorStream.archiveEntry!.Open(),
-                    dtype = tensorStream.dtype,
+                    ArchiveIndex = tensorStream.ArchiveIndex,
+                    Data = tensorStream.ArchiveEntry!.Open(),
+                    DType = tensorStream.DType,
                     // Arg 1: storage_offset
-                    storageOffset = (int)args[1],
+                    StorageOffset = (int)args[1],
                     // Arg 2: tensor_shape
-                    shape = ((object[])args[2]).Select(i => (long)(int)i).ToArray(),
+                    Shape = ((object[])args[2]).Select(i => (long)(int)i).ToArray(),
                     // Arg 3: stride
-                    stride = ((object[])args[3]).Select(i => (long)(int)i).ToArray(),
+                    Stride = ((object[])args[3]).Select(i => (long)(int)i).ToArray(),
                     // Arg 4: requires_grad
-                    requiresGrad = (bool)args[4],
+                    RequiresGrad = (bool)args[4],
                 };
 
                 // Arg 5: backward_hooks, we don't support adding them in and it's not recommended
                 // in PyTorch to serialize them.
 
-                return tensorStream.skipTensorRead
+                return tensorStream.SkipTensorRead
                     ? constructor
-                    : constructor.readTensorFromStream();
+                    : constructor.ReadTensorFromStream();
             }
         }
 
@@ -193,26 +193,26 @@ namespace TorchSharp.PyBridge {
 
         internal record TensorConstructorArgs
         {
-            public int archiveIndex { get; init; }
+            public int ArchiveIndex { get; init; }
 
-            public Stream data { get; init; }
+            public Stream Data { get; init; }
 
-            public torch.ScalarType dtype { get; init; }
+            public torch.ScalarType DType { get; init; }
 
-            public int storageOffset { get; init; }
+            public int StorageOffset { get; init; }
 
-            public long[] shape { get; init; }
+            public long[] Shape { get; init; }
 
-            public long[] stride { get; init; }
+            public long[] Stride { get; init; }
 
-            public bool requiresGrad { get; init; }
+            public bool RequiresGrad { get; init; }
 
-            public torch.Tensor readTensorFromStream() {
+            public torch.Tensor ReadTensorFromStream() {
                 var temp = torch
-                    .empty(shape, dtype, device: torch.CPU)
-                    .as_strided(shape, stride, storageOffset);
-                temp.ReadBytesFromStream(data);
-                data.Close();
+                    .empty(Shape, DType, device: torch.CPU)
+                    .as_strided(Shape, Stride, StorageOffset);
+                temp.ReadBytesFromStream(Data);
+                Data.Close();
 
                 return temp;
             }
@@ -224,10 +224,10 @@ namespace TorchSharp.PyBridge {
         /// Therefore, this class is a simple wrapper for the bytes + dtype of the storage.
         /// </summary>
         class TensorStream {
-            public int archiveIndex { get; init; }
-            public ZipArchiveEntry archiveEntry { get; init; }
-            public torch.ScalarType dtype { get; init; }
-            public bool skipTensorRead { get; init; }
+            public int ArchiveIndex { get; init; }
+            public ZipArchiveEntry ArchiveEntry { get; init; }
+            public torch.ScalarType DType { get; init; }
+            public bool SkipTensorRead { get; init; }
         }
     }
 }

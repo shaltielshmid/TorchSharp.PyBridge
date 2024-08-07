@@ -126,7 +126,7 @@ namespace TorchSharp.PyBridge {
             var unpickled = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen: true, skipTensorRead: true);
 
             // Convert the hashtable to a dictionary of string->tensor
-            Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickledConstructors = new();
+            var unpickledConstructors = new Dictionary<string, PyTorchUnpickler.TensorConstructorArgs>();
 
             foreach (string key in unpickled.Keys) {
                 unpickledConstructors.Add(key, (PyTorchUnpickler.TensorConstructorArgs)unpickled[key]!);
@@ -159,62 +159,59 @@ namespace TorchSharp.PyBridge {
         /// Mirrors the implementation of module.load_state_dict but performs tensor reading
         /// with less intermediate memory overhead.
         /// </summary>
-        static (IList<string> missing_keys, IList<string> unexpected_keyes) load_state_dict(
+        static (IList<string> missing_keys, IList<string> unexpected_keys) load_state_dict(
             Module module,
             Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickled,
             bool strict = true,
             IList<string> skip = null
-        )
-        {
-            var missing_keys = new List<string>();
-            var unexpected_keyes = new List<string>();
+        ) {
+            var missingKeys = new List<string>();
+            var unexpectedKeys = new List<string>();
             skip ??= Array.Empty<string>();
 
             var state = module.state_dict();
 
             foreach (string key in unpickled.Keys) {
                 if (!skip.Contains(key) && !state.ContainsKey(key))
-                    unexpected_keyes.Add(key);
+                    unexpectedKeys.Add(key);
             }
 
             foreach (string key in state.Keys) {
                 if (!skip.Contains(key) && !unpickled.ContainsKey(key)) {
-                    missing_keys.Add(key);
+                    missingKeys.Add(key);
                 }
             }
 
-            if (strict && (missing_keys.Count > 0 || unexpected_keyes.Count > 0)) {
+            if (strict && (missingKeys.Count > 0 || unexpectedKeys.Count > 0)) {
                 throw new InvalidOperationException("The loaded state_dict is not identical to the target dictionary.");
             }
 
             var inputStreams = unpickled
-                .Select(_ => (key: _.Key, constructor: _.Value))
-                .Where(_ => state.ContainsKey(_.key))
+                .Where(e => state.ContainsKey(e.Key))
                 // Avoid random stream seeks by reading archive files in the order that they are stored.
-                .OrderBy(_ => _.constructor.archiveIndex)
+                .OrderBy(e => e.Value.ArchiveIndex)
                 .ToArray();
 
-            foreach (var (key, source) in inputStreams) {
+            foreach (var (key, constructor) in inputStreams) {
                 var target = state[key];
-                target.with_requires_grad(source.requiresGrad);
+                target.with_requires_grad(constructor.RequiresGrad);
 
-                if (source.dtype == state[key].dtype) {
-                    using var stream = source.data;
+                if (constructor.DType == state[key].dtype) {
+                    using var stream = constructor.Data;
                     // Read directly into target tensor.
                     target
-                        .as_strided(source.shape, source.stride, source.storageOffset)
+                        .as_strided(constructor.Shape, constructor.Stride, constructor.StorageOffset)
                         .ReadBytesFromStream(stream);
-                    target.with_requires_grad(source.requiresGrad);
                 }
                 else {
                     // Type conversion with intermediate tensor required.
                     // This will load onto cpu first before copying to target.
-                    using torch.Tensor temp = source.readTensorFromStream();
+                    using torch.Tensor temp = constructor.ReadTensorFromStream();
                     state[key].copy_(temp);
                 }
             }
 
-            return (missing_keys, unexpected_keyes);
+            return (missingKeys, unexpectedKeys);
         }
 
         /// <summary>
