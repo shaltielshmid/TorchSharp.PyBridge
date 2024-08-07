@@ -26,8 +26,12 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         /// <param name="stream">Stream of the file to load</param>
         /// <param name="leaveOpen">true to leave the stream open after saving the file</param>
+        /// <param name="skipTensorRead">true to return descriptor objects and streams instead of tensors so that they can be loaded later</param>
         /// <returns>The loaded state_dict</returns>
-        public static Hashtable UnpickleStateDict(Stream stream, bool leaveOpen = false) {
+        public static Hashtable UnpickleStateDict(Stream stream, bool leaveOpen = false, bool skipTensorRead = false) {
+            if (skipTensorRead && !leaveOpen)
+                throw new ArgumentException("leaveOpen must be true when skipTensorRead is true");
+
             // Make sure it's a zip file
             // If it's not, then it was saved using legacy torch save and we don't support it (yet, at least)
             // Check the local file signature
@@ -45,7 +49,7 @@ namespace TorchSharp.PyBridge {
 
             // Create our unpickler with the archive, so it can pull all the relevant files
             // using the persistentId
-            var unpickler = new CustomUnpickler(archive);
+            var unpickler = new CustomUnpickler(archive, skipTensorRead);
             // The unpickle returns a hash mapping ["key"] to the tensor
             return (Hashtable)unpickler.load(pklEntry.Open());
         }
@@ -61,8 +65,11 @@ namespace TorchSharp.PyBridge {
         class CustomUnpickler : Unpickler {
             readonly ZipArchive _archive;
 
-            public CustomUnpickler(ZipArchive archive) {
+            readonly bool _skipTensorRead;
+
+            public CustomUnpickler(ZipArchive archive, bool skipTensorRead) {
                 _archive = archive;
+                _skipTensorRead = skipTensorRead;
             }
 
             protected override object persistentLoad(object pid) {
@@ -79,20 +86,24 @@ namespace TorchSharp.PyBridge {
                 string storageType = ((ClassDictConstructor)opid[1]).name;
                 // Tuple Item2: key (filename in the archive)
                 string archiveKey = (string)opid[2];
-                // Tuple Item3: location (cpu/gpu), but we always load onto CPU. 
+                // Tuple Item3: location (cpu/gpu), but we always load onto CPU.
                 // Tuple Item4: numElems (the number of elements in the tensor)
-                
+
                 // Convert the storage name into the relevant scalar type (e.g., LongStorage => torch.long)
                 // and then check how many bytes each element is
                 var dtype = GetScalarTypeFromStorageName(storageType);
-                
+
                 // Retrieve the entry from the archive
-                var entry = _archive.Entries.First(f => f.FullName.EndsWith($"data/{archiveKey}"));
-                
+                var entry = _archive.Entries
+                    .Select((archiveEntry, index) => (archiveEntry, index))
+                    .First(e => e.archiveEntry.FullName.EndsWith($"data/{archiveKey}"));
+
                 // Send this back, so our TensorObjectConstructor can create our torch.tensor from the object.
-                return new TensorObject() {
-                    data = entry!.Open(),
-                    dtype = dtype
+                return new TensorStream {
+                    ArchiveIndex = entry!.index,
+                    ArchiveEntry = entry!.archiveEntry,
+                    DType = dtype,
+                    SkipTensorRead = _skipTensorRead,
                 };
             }
 
@@ -118,7 +129,7 @@ namespace TorchSharp.PyBridge {
         /// <summary>
         /// The unpickler implementation requires a __setstate__ function for unpickling an ordered dict, due
         /// to the way it was saved. This class is just a regular Hashtable with an implementation for the
-        /// __setstate__. 
+        /// __setstate__.
         /// </summary>
         class OrderedDict : Hashtable {
             public void __setstate__(Hashtable arg) {
@@ -145,27 +156,29 @@ namespace TorchSharp.PyBridge {
         /// </summary>
         class TensorObjectConstructor : IObjectConstructor {
             public object construct(object[] args) {
-                // Arg 0: (byte[] data, ScalarType dtype) // returned from our custom pickler
-                var arg0 = (TensorObject)args[0];
-                // Arg 1: storage_offset
-                int storageOffset = (int)args[1];
-                // Arg 2: tensor_shape
-                var shape = ((object[])args[2]).Select(i => (long)(int)i).ToArray();
-                // Arg 3: stride 
-                var stride = ((object[])args[3]).Select(i => (long)(int)i).ToArray();
-                // Arg 4: requires_grad
-                var requiresGrad = (bool)args[4];
+                // Arg 0: returned from our custom pickler
+                var tensorStream = (TensorStream)args[0];
+
+                var constructor = new TensorConstructorArgs {
+                    ArchiveIndex = tensorStream.ArchiveIndex,
+                    Data = tensorStream.ArchiveEntry!.Open(),
+                    DType = tensorStream.DType,
+                    // Arg 1: storage_offset
+                    StorageOffset = (int)args[1],
+                    // Arg 2: tensor_shape
+                    Shape = ((object[])args[2]).Select(i => (long)(int)i).ToArray(),
+                    // Arg 3: stride
+                    Stride = ((object[])args[3]).Select(i => (long)(int)i).ToArray(),
+                    // Arg 4: requires_grad
+                    RequiresGrad = (bool)args[4],
+                };
+
                 // Arg 5: backward_hooks, we don't support adding them in and it's not recommended
                 // in PyTorch to serialize them.
 
-                // If there is no shape, then the shape is just 1
-                // Since we have two operations here - we want to make sure to dispose the temporary.
-                torch.Tensor t = torch.WrappedTensorDisposeScope(() => 
-                                    torch.empty(shape, arg0.dtype).as_strided(shape, stride, storageOffset));
-
-                t.ReadBytesFromStream(arg0.data);
-                arg0.data.Close();
-                return t;
+                return tensorStream.SkipTensorRead
+                    ? constructor
+                    : constructor.ReadTensorFromStream();
             }
         }
 
@@ -182,15 +195,43 @@ namespace TorchSharp.PyBridge {
             }
         }
 
+        internal record TensorConstructorArgs
+        {
+            public int ArchiveIndex { get; init; }
+
+            public Stream Data { get; init; }
+
+            public torch.ScalarType DType { get; init; }
+
+            public int StorageOffset { get; init; }
+
+            public long[] Shape { get; init; }
+
+            public long[] Stride { get; init; }
+
+            public bool RequiresGrad { get; init; }
+
+            public torch.Tensor ReadTensorFromStream() {
+                var temp = torch
+                    .empty(Shape, DType, device: torch.CPU)
+                    .as_strided(Shape, Stride, StorageOffset);
+                temp.ReadBytesFromStream(Data);
+                Data.Close();
+
+                return temp;
+            }
+        }
 
         /// <summary>
         /// When the unpickler first loads in the tensor, it only has access to metadata about the storage
         /// of the tensor, but not the info about stride/shape etc. That part is done in the TensorReconstructor.
         /// Therefore, this class is a simple wrapper for the bytes + dtype of the storage.
         /// </summary>
-        class TensorObject {
-            public Stream data { get; set; }
-            public torch.ScalarType dtype { get; set; }
+        class TensorStream {
+            public int ArchiveIndex { get; init; }
+            public ZipArchiveEntry ArchiveEntry { get; init; }
+            public torch.ScalarType DType { get; init; }
+            public bool SkipTensorRead { get; init; }
         }
     }
 }

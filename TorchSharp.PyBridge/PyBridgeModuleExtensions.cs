@@ -1,5 +1,3 @@
-using System.Collections;
-using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TqdmSharp;
@@ -116,33 +114,104 @@ namespace TorchSharp.PyBridge {
         /// <remarks>
         /// This method only supports loading the newer format used by `torch.save`, using a zip file. 
         /// The model will be fully loaded and all the validation checks will only run after the state
-        /// dictionary has been fully loaded. 
+        /// dictionary has been fully loaded.
         /// </remarks>
         public static Module load_py(this Module module, System.IO.Stream stream, bool strict = true, IList<string>? skip = null, Dictionary<string, bool>? loadedParameters = null, bool leaveOpen = false) {
-            // Create a dispose score so that we don't keep anyof the loaded tensors past this function
+            // Create a dispose score so that we don't keep any of the loaded tensors past this function
             using var d = torch.NewDisposeScope();
             using var d2 = torch.no_grad(); // To circumvent a bug introduced in 0.102.0
 
-            // Unpickle the state dictionary into memory
-            var stateHashtable = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen);
+            // Unpickle the state dictionary into memory.
+            // Keep stream open because tensors will not get deserialized yet.
+            var unpickled = PyTorchUnpickler.UnpickleStateDict(stream, leaveOpen: true, skipTensorRead: true);
 
             // Convert the hashtable to a dictionary of string->tensor
-            var stateDict = new Dictionary<string, torch.Tensor>();
-            foreach (string key in stateHashtable.Keys)
-                stateDict.Add(key, (torch.Tensor)stateHashtable[key]!);
+            var unpickledConstructors = new Dictionary<string, PyTorchUnpickler.TensorConstructorArgs>();
 
-            // Load it in using the builtin function
-            var (_, unexpectedKeys) = module.load_state_dict(stateDict, strict, skip);
+            foreach (string key in unpickled.Keys) {
+                unpickledConstructors.Add(key, (PyTorchUnpickler.TensorConstructorArgs)unpickled[key]!);
+            }
 
-            // Fill in the loadedParameters dictionary, if relevant
-            if (loadedParameters is not null) {
-                foreach (string key in stateDict.Keys)
-                    loadedParameters[key] = true;
-                foreach (string key in unexpectedKeys)
-                    loadedParameters[key] = false;
+            var (_, unexpectedKeys) = load_state_dict(module, unpickledConstructors, strict, skip);
+
+            if (!leaveOpen) {
+                // Close stream now that tensor streams have been read.
+                stream.Close ();
+            }
+
+            if (loadedParameters is null) {
+                return module;
+            }
+
+            // Fill in the loadedParameters dictionary
+            foreach (var key in unpickledConstructors.Keys) {
+                loadedParameters[key] = true;
+            }
+
+            foreach (var key in unexpectedKeys) {
+                loadedParameters[key] = false;
             }
 
             return module;
+        }
+
+        /// <summary>
+        /// Mirrors the implementation of module.load_state_dict but performs tensor reading
+        /// with less intermediate memory overhead.
+        /// </summary>
+        static (IList<string> missing_keys, IList<string> unexpected_keys) load_state_dict(
+            Module module,
+            Dictionary<string, PyTorchUnpickler.TensorConstructorArgs> unpickled,
+            bool strict = true,
+            IList<string> skip = null
+        ) {
+            var missingKeys = new List<string>();
+            var unexpectedKeys = new List<string>();
+            skip ??= Array.Empty<string>();
+
+            var state = module.state_dict();
+
+            foreach (string key in unpickled.Keys) {
+                if (!skip.Contains(key) && !state.ContainsKey(key))
+                    unexpectedKeys.Add(key);
+            }
+
+            foreach (string key in state.Keys) {
+                if (!skip.Contains(key) && !unpickled.ContainsKey(key)) {
+                    missingKeys.Add(key);
+                }
+            }
+
+            if (strict && (missingKeys.Count > 0 || unexpectedKeys.Count > 0)) {
+                throw new InvalidOperationException("The loaded state_dict is not identical to the target dictionary.");
+            }
+
+            var inputStreams = unpickled
+                .Where(e => state.ContainsKey(e.Key))
+                // Avoid random stream seeks by reading archive files in the order that they are stored.
+                .OrderBy(e => e.Value.ArchiveIndex)
+                .ToArray();
+
+            foreach (var (key, constructor) in inputStreams) {
+                var target = state[key];
+                target.with_requires_grad(constructor.RequiresGrad);
+
+                if (constructor.DType == state[key].dtype) {
+                    using var stream = constructor.Data;
+                    // Read directly into target tensor.
+                    target
+                        .as_strided(constructor.Shape, constructor.Stride, constructor.StorageOffset)
+                        .ReadBytesFromStream(stream);
+                }
+                else {
+                    // Type conversion with intermediate tensor required.
+                    // This will load onto cpu first before copying to target.
+                    using torch.Tensor temp = constructor.ReadTensorFromStream();
+                    state[key].copy_(temp);
+                }
+            }
+
+            return (missingKeys, unexpectedKeys);
         }
 
         /// <summary>
