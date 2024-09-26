@@ -339,10 +339,10 @@ namespace TorchSharp.PyBridge {
             string mainFilename = Path.Combine(path, checkpointName!);
             // If the file ends with .safetensors - load it in using that method
             if (mainFilename.EndsWith(".safetensors")) 
-                return module.load_safetensors(mainFilename);
+                return module.load_safetensors(mainFilename, strict, skip, loadedParameters);
             // If the file doesn't end with .json - try loading it in using the regular pytorch method
             if (!mainFilename.EndsWith(".json"))
-                return module.load_py(mainFilename);
+                return module.load_py(mainFilename, strict, skip, loadedParameters);
 
             // We have an index json for a sharded file.
             string indexJson = File.ReadAllText(mainFilename);

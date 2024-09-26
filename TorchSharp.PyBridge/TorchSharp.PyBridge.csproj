@@ -21,10 +21,12 @@
     <PackageProjectUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge</PackageProjectUrl>
     <RepositoryUrl>https://github.com/shaltielshmid/TorchSharp.PyBridge.git</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <Version>1.4.2</Version>
-    <AssemblyVersion>1.4.2.0</AssemblyVersion>
-    <FileVersion>1.4.2.0</FileVersion>
+    <Version>1.4.3</Version>
+    <AssemblyVersion>1.4.3.0</AssemblyVersion>
+    <FileVersion>1.4.3.0</FileVersion>
     <PackageReleaseNotes>
+      1.4.3:
+      - Fixed #21: `strict` is not passed to `load_safetensor` in `load_checkpoint` extension
       1.4.2:
       - PR #20: Optimize load_py for memory and speed (@ejhg)
       1.4.1:
