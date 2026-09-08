@@ -1,5 +1,8 @@
 # TorchSharp.PyBridge Release Notes
 
+1.4.4:
+- Fixed #22: Rebuilt against TorchSharp 0.103.0+ (`Tensor.to` signature change caused `MissingMethodException` on TorchSharp >= 0.103.0). Minimum TorchSharp is now 0.103.0.
+
 1.4.3:
 - Fixed #21: `strict` is not passed to `load_safetensor` in `load_checkpoint` extension
 

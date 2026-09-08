@@ -79,13 +79,13 @@ namespace TorchSharp.PyBridge {
                 ScalarType.Int16 => tensor.ToInt16(),
                 ScalarType.Int32 => tensor.ToInt32(),
                 ScalarType.Int64 => tensor.ToInt64(),
-                ScalarType.Float16 => tensor.ToHalf(),
+                ScalarType.Float16 => tensor.ToSingle(),
                 ScalarType.Float32 => tensor.ToSingle(),
                 ScalarType.Float64 => tensor.ToDouble(),
                 ScalarType.ComplexFloat32 => tensor.ToComplexFloat32(),
                 ScalarType.ComplexFloat64 => tensor.ToComplexFloat64(),
                 ScalarType.Bool => tensor.ToBoolean(),
-                ScalarType.BFloat16 => tensor.@half().ToHalf(),
+                ScalarType.BFloat16 => tensor.ToSingle(),
                 _ => throw new ArgumentException($"Loaded tensor of type unknown to `TorchSharp.PyBridge`: {tensor.dtype}. Please open an issue in the repository.")
             };
         }
